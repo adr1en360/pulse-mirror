@@ -186,6 +186,9 @@ function tick() {
     }
 }
 
+const CHEEK_LEFT = [50, 205, 187, 123];
+const CHEEK_RIGHT = [280, 425, 411, 352];
+
 // MediaPipe face-mesh outline: the tint covers the whole face, not three spots.
 const FACE_OVAL = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109];
 
@@ -292,17 +295,197 @@ function drawDoodleHeart(g, cx, cy, size, beatNow, now) {
     g.restore();
 }
 
+// MediaPipe face-mesh index sets for the line portrait.
+const LIPS_OUTER = [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 409, 270, 269, 267, 0, 37, 39, 40, 185];
+const LIPS_INNER = [78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308, 415, 310, 311, 312, 13, 82, 81, 80, 191];
+const EYE_LEFT = [263, 249, 390, 373, 374, 380, 381, 382, 362, 398, 384, 385, 386, 387, 388, 466];
+const EYE_RIGHT = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246];
+const BROW_LEFT = [[276, 283, 282, 295, 285], [300, 293, 334, 296, 336]];
+const BROW_RIGHT = [[46, 53, 52, 65, 55], [70, 63, 105, 66, 107]];
+const NOSE_BRIDGE = [168, 6, 197, 195, 5, 4];
+const NOSE_BASE = [98, 97, 2, 326, 327];
+const IRIS_LEFT = 468, IRIS_RIGHT = 473;
+const SKIN_SPOTS = [151, 9, 50, 280, 205, 425];
+const INK = '#16181b';
+let portraitScale = 0;
+let skin = { r: 150, g: 105, b: 85 };   // overwritten by the person's own skin tone once sampled
+let skinAt = 0;
+const skinCanvas = document.createElement('canvas');
+skinCanvas.width = 160;
+skinCanvas.height = 90;
+
+// Reads the person's own skin colour from a few small patches, so the drawing is of them.
+// Only a colour is kept; no picture of the person goes into the clip.
+function sampleSkin(P, vw, vh, now) {
+    if (now - skinAt < 400 || !els.preview.videoWidth) return;
+    skinAt = now;
+    const c = skinCanvas.getContext('2d', { willReadFrequently: true });
+    c.drawImage(els.preview, 0, 0, skinCanvas.width, skinCanvas.height);
+    let r = 0, g = 0, b = 0, n = 0;
+    for (const i of SKIN_SPOTS) {
+        const p = P(i);
+        const x = Math.round((p.x / vw) * skinCanvas.width), y = Math.round((p.y / vh) * skinCanvas.height);
+        if (x < 3 || y < 3 || x > skinCanvas.width - 4 || y > skinCanvas.height - 4) continue;
+        const d = c.getImageData(x - 2, y - 2, 5, 5).data;
+        for (let k = 0; k < d.length; k += 4) { r += d[k]; g += d[k + 1]; b += d[k + 2]; n++; }
+    }
+    if (!n) return;
+    const m = 0.3;
+    skin = { r: skin.r * (1 - m) + (r / n) * m, g: skin.g * (1 - m) + (g / n) * m, b: skin.b * (1 - m) + (b / n) * m };
+}
+
+const rgb = (c, f = 1) => 'rgb(' + Math.round(Math.min(255, c.r * f)) + ',' + Math.round(Math.min(255, c.g * f)) + ',' + Math.round(Math.min(255, c.b * f)) + ')';
+
+// A smooth hand-drawn curve through the points.
+function curve(g, pts, closed) {
+    const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+    g.beginPath();
+    if (closed) {
+        const s = mid(pts[pts.length - 1], pts[0]);
+        g.moveTo(s.x, s.y);
+        for (let i = 0; i < pts.length; i++) {
+            const m = mid(pts[i], pts[(i + 1) % pts.length]);
+            g.quadraticCurveTo(pts[i].x, pts[i].y, m.x, m.y);
+        }
+        g.closePath();
+    } else {
+        g.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length - 1; i++) {
+            const m = mid(pts[i], pts[i + 1]);
+            g.quadraticCurveTo(pts[i].x, pts[i].y, m.x, m.y);
+        }
+        g.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+    }
+}
+
+// The leader field behind the portrait, quieter than on screen.
+function drawClipBackdrop(g, W, H) {
+    g.fillStyle = '#666b71';
+    g.fillRect(0, 0, W, H);
+    g.strokeStyle = 'rgba(242, 243, 244, 0.35)';
+    g.lineWidth = 2;
+    g.beginPath();
+    g.moveTo(0, H / 2); g.lineTo(W, H / 2);
+    g.moveTo(W / 2, 0); g.lineTo(W / 2, H);
+    g.stroke();
+    for (const r of [300, 340]) { g.beginPath(); g.arc(W / 2, H / 2, r, 0, Math.PI * 2); g.stroke(); }
+}
+
+// Traces the live face landmarks as a hand-drawn portrait. The person's own smile, blinks,
+// mouth, brows and gaze move it; there is no video of them in the picture.
+function drawLinePortrait(g, now) {
+    if (!points) return;
+    const vw = els.preview.videoWidth || 1280, vh = els.preview.videoHeight || 720;
+    const P = (i) => {
+        const p = points[i];
+        return { x: landmarksNormalized ? p.x * vw : p.x, y: landmarksNormalized ? p.y * vh : p.y };
+    };
+    sampleSkin(P, vw, vh, now);
+    const a = P(234), b = P(454);
+    const faceW = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+    let cx = 0, cy = 0;
+    for (const i of FACE_OVAL) { const p = P(i); cx += p.x; cy += p.y; }
+    cx /= FACE_OVAL.length;
+    cy /= FACE_OVAL.length;
+    const calm = document.body.classList.contains('calm');
+    portraitScale = portraitScale ? portraitScale * 0.9 + (370 / faceW) * 0.1 : 370 / faceW;
+    const k = portraitScale * (1 + (calm ? 0.01 : 0.03) * swell);   // the drawing breathes
+    const ox = 600, oy = 300;
+    // Mirrored, like the live mirror; centred and scaled so head movement shows as tilt and turn.
+    const T = (i) => { const p = P(i); return { x: ox - (p.x - cx) * k, y: oy + (p.y - cy) * k }; };
+
+    const seed = Math.floor(now / 110);   // lines re-drawn about nine times a second
+    const rnd = (i) => { const x = Math.sin(seed * 12.9898 + i * 78.233) * 43758.5453; return x - Math.floor(x) - 0.5; };
+    const pts = (idx, salt, amp = 3) => idx.map((i, n) => { const t = T(i); return { x: t.x + rnd(salt + n) * amp, y: t.y + rnd(salt + n + 97) * amp }; });
+    g.save();
+    g.lineCap = 'round';
+    g.lineJoin = 'round';
+
+    // Skin: a flat fill in the person's own tone, with a darker hand-drawn outline.
+    const face = pts(FACE_OVAL, 0);
+    curve(g, face, true);
+    g.fillStyle = rgb(skin);
+    g.fill();
+    g.strokeStyle = INK;
+    g.lineWidth = 6;
+    g.stroke();
+
+    // Eyes: white shapes with dark pupils that follow the gaze.
+    for (const [eye, salt] of [[EYE_LEFT, 80], [EYE_RIGHT, 120]]) {
+        const e = pts(eye, salt, 2);
+        curve(g, e, true);
+        g.fillStyle = '#f2f3f4';
+        g.fill();
+        g.strokeStyle = INK;
+        g.lineWidth = 4;
+        g.stroke();
+    }
+    const eyeW = Math.hypot(T(33).x - T(133).x, T(33).y - T(133).y);
+    g.fillStyle = INK;
+    for (const i of [IRIS_LEFT, IRIS_RIGHT]) {
+        const t = T(i);
+        g.beginPath();
+        g.arc(t.x + rnd(300 + i) * 1.5, t.y + rnd(400 + i) * 1.5, Math.max(5, eyeW * 0.17), 0, Math.PI * 2);
+        g.fill();
+    }
+
+    // Brows: thick dark strokes.
+    g.strokeStyle = INK;
+    g.lineWidth = 8;
+    for (const [brow, salt] of [[BROW_LEFT, 40], [BROW_RIGHT, 60]]) {
+        curve(g, pts(brow[0], salt, 2), false);
+        g.stroke();
+    }
+
+    // Nose, drawn lightly.
+    g.lineWidth = 4;
+    g.strokeStyle = 'rgba(22, 24, 27, 0.75)';
+    curve(g, pts(NOSE_BRIDGE, 240, 2), false);
+    g.stroke();
+    curve(g, pts(NOSE_BASE, 260, 2), false);
+    g.stroke();
+
+    // Mouth: a darker lip tone, and the open mouth as a dark shape so a smile or a word shows.
+    curve(g, pts(LIPS_OUTER, 160, 2), true);
+    g.fillStyle = rgb(skin, 0.62);
+    g.fill();
+    g.strokeStyle = INK;
+    g.lineWidth = 4.5;
+    g.stroke();
+    curve(g, pts(LIPS_INNER, 200, 1.5), true);
+    g.fillStyle = '#2a1414';
+    g.fill();
+    g.lineWidth = 3;
+    g.stroke();
+
+    // Cheeks hatch with each pulse: the flush, drawn by hand.
+    const r = faceW * k * 0.13;
+    g.strokeStyle = '#ff5b3d';
+    g.lineWidth = 4;
+    for (const idx of [CHEEK_LEFT, CHEEK_RIGHT]) {
+        let mx = 0, my = 0;
+        for (const i of idx) { const t = T(i); mx += t.x; my += t.y; }
+        mx /= idx.length;
+        my /= idx.length;
+        const n = Math.round(3 + 6 * beat);
+        g.globalAlpha = 0.25 + 0.75 * beat;
+        for (let j = 0; j < n; j++) {
+            const x0 = mx - r + (j * 2 * r) / Math.max(1, n - 1);
+            g.beginPath();
+            g.moveTo(x0 + rnd(500 + j) * 4, my + r * 0.75);
+            g.lineTo(x0 + r * 0.8 + rnd(520 + j) * 4, my - r * 0.75);
+            g.stroke();
+        }
+    }
+    g.globalAlpha = 1;
+    g.restore();
+}
+
 function composeClip() {
     const g = clipCanvas.getContext('2d');
     const W = CLIP_W, H = CLIP_H, now = performance.now();
-    g.fillStyle = '#101214';
-    g.fillRect(0, 0, W, H);
-    g.save();
-    g.translate(W / 2, H / 2);
-    g.scale(-swellScale, swellScale);          // the mirror view is flipped, so the clip is too
-    g.drawImage(els.preview, -W / 2, -H / 2, W, H);
-    if (!overlayIsMesh && els.tint.width > 0 && els.tint.height > 0) g.drawImage(els.tint, -W / 2, -H / 2, W, H);
-    g.restore();
+    drawClipBackdrop(g, W, H);
+    drawLinePortrait(g, now);
 
     // Registration ticks in the corners, from the film leader.
     g.strokeStyle = 'rgba(242, 243, 244, 0.85)';
@@ -314,7 +497,7 @@ function composeClip() {
         g.stroke();
     }
 
-    drawDoodleHeart(g, W - 150, H - 150, 92, beat, now);
+    drawDoodleHeart(g, W - 150, H - 190, 92, beat, now);
 
     // Caption plate.
     const date = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).toUpperCase();
@@ -324,7 +507,7 @@ function composeClip() {
     g.textBaseline = 'alphabetic';
     g.font = '800 46px "Big Shoulders Display", sans-serif';
     g.fillText('ABOUT ' + (bpmShown === null ? '--' : Math.round(bpmShown)) + ' BEATS A MINUTE', 62, H - 40 - 48);
-    g.fillStyle = '#aeb3b9';
+    g.fillStyle = '#d4d8dc';
     g.font = '500 20px "Geist", sans-serif';
     g.fillText(date + '  ·  PULSE MIRROR', 62, H - 40 - 18);
 }

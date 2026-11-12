@@ -14,7 +14,7 @@ It is a desktop app (Electron, Windows x64). Everything you see is drawn from th
 2. **Finding.** Your live face sits under an old film-leader countdown (crosshair, rings, a sweeping arm, an outline number counting seconds). Face dots show the app can see you while it looks for your pulse.
 3. **Locked.** Once the SDK reports a stable pulse, the leader falls away. Your whole face flushes in time with your pulse waveform, the picture swells slightly with your breathing, and a readout shows "about N beats a minute".
 4. **Lost.** If the pulse is lost for three seconds the beat fades out and the app says so plainly. It never fakes a beat.
-5. **Capture.** Capture 6 seconds records a looping clip of the mirror with the beating heart doodle, a caption and corner marks. Review it, then Save clip (a file you choose) or Discard.
+5. **Capture.** Capture 6 seconds records a looping clip. It is not video of you: it is a hand-drawn portrait traced live from your face points (face outline, brows, eyes and pupils, lips, nose) in your own skin tone, so your smile, blinks, open mouth and gaze move the drawing. Your cheeks hatch with each pulse, the portrait breathes, a hand-drawn heart beats beside it, and a caption reads "about N beats a minute". Review it, then Save clip (a file you choose) or Discard. If the pulse is lost mid-recording, the capture is cancelled.
 
 ## Which signals it uses
 
@@ -23,7 +23,7 @@ It is a desktop app (Electron, Windows x64). Everything you see is drawn from th
 | Pulse rate, confidence, stable flag | Deciding when the pulse is found or lost; the readout |
 | Pulse waveform | The flush on your face and the beat of the doodle heart |
 | Breathing trace | The slow swell of the picture |
-| Face landmarks (478 points) | The face outline the flush is drawn inside; the dots while searching |
+| Face landmarks (478 points) | The face outline the flush is drawn inside; the dots while searching; the whole line portrait in the share clip (expression is read from how these points move, not from emotion labels) |
 | Validation hints | The guidance text ("increase light on face") |
 
 ## Requirements
@@ -68,7 +68,7 @@ Keys: **Start camera**, **Capture 6 seconds**, **Save clip** / **Discard**, **Ca
 - **Where processing happens.** Video is analysed on your computer by the SDK. Frames are not recorded or uploaded by this app.
 - **What the SDK sends.** It contacts Presage's servers to check your access key and usage, and to download its models. SDK telemetry is turned off (`enableTelemetry: false`).
 - **AI service disclosure.** According to Presage's documentation, while a session runs the SDK automatically sends short summaries of numbers derived from your pulse, heart-rate variability and breathing to Presage, which forwards them to a language model for a wellness check-in. Raw video and facial images are never sent, only those derived numbers and a fixed prompt. This app does not request those summaries, does not display them and does not store them, and the SDK offers no setting to switch this off. The app itself calls no other AI service.
-- **Storage and retention.** Nothing is stored unless you press Capture and then Save. A captured clip lives in memory until you save or discard it. Saving writes one file to a location you pick. There is no account, no server and no upload. Deleting the file deletes the clip.
+- **Storage and retention.** Nothing is stored unless you press Capture and then Save. A captured clip lives in memory until you save or discard it. It contains no photo or video of you, only a drawing traced from your face points, and one colour sampled from your skin to fill it. Saving writes one file to a location you pick. There is no account, no server and no upload. Deleting the file deletes the clip.
 - **Not a medical device.** Pulse Mirror is for curiosity. It makes no diagnosis, gives no health verdicts and must not be used for medical decisions. The SDK itself says its readings are not cleared for diagnosis or treatment.
 - **No covert use.** It only works with a visible camera indicator, on the person sitting at the computer.
 
@@ -77,7 +77,8 @@ Keys: **Start camera**, **Capture 6 seconds**, **Save clip** / **Discard**, **Ca
 - The flush on your face is drawn by the app and driven by the SDK's live pulse waveform. It is not magnified video.
 - A recorded video of a real face is read as a pulse by the SDK, so this app makes no claim to prove a person is live. A still photo does not produce a reading.
 - Accuracy depends on light, stillness and the camera. Presage publishes no per-skin-tone accuracy figures. In testing on one person, the pulse read 86 to 88 beats a minute against a manual count of 84.
-- The SDK's expression readings were not reliable enough in testing, so the app does not use them.
+- The SDK's expression readings were not reliable enough in testing (in one test a smile scored "happy" in only 7% of readings, less than a neutral face did), so the app does not use them. The portrait shows your expression through the movement of your face points instead, and makes no claim about your emotions.
+- The portrait does not draw hair, glasses or headphones; it follows only the face outline and features.
 
 ## Credits and prior work
 
