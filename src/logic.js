@@ -26,9 +26,10 @@ function smoothBpm(previous, value) {
 }
 
 // The searching, locked and lost states. `lastGood` is the time of the last good reading (0 if none).
-function nextState(state, now, lastGood, reconnecting, lostAfterMs) {
+// A pulse that has gone stale is lost, whether or not the SDK is reconnecting: the beat is never faked.
+function nextState(state, now, lastGood, lostAfterMs) {
     if ((state === 'finding' || state === 'lost') && lastGood && now - lastGood < LOCK_HOLD_MS) return 'locked';
-    if (state === 'locked' && !reconnecting && now - lastGood > lostAfterMs) return 'lost';
+    if (state === 'locked' && now - lastGood > lostAfterMs) return 'lost';
     return state;
 }
 

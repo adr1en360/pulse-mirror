@@ -51,7 +51,6 @@ clipCanvas.width = CLIP_W;
 clipCanvas.height = CLIP_H;
 let clipMode = '';   // '', 'recording' or 'review'
 let swellScale = 1;
-let beatMin = 1, beatMax = 0;
 
 // Live signal buffers. The pulse waveform drives the throb; the chest trace drives the swell.
 const pulseWave = [];
@@ -75,7 +74,6 @@ async function openLaptopCamera() {
     const virtual = /phone|link|mobile|virtual|android|iphone|galaxy|pixel|obs|droidcam|iriun/i;
     const pick = devices.find((d) => !virtual.test(d.label)) || devices[0];
     if (!pick) throw new Error('No camera found.');
-    console.log('[pm] camera: ' + pick.label);
     return navigator.mediaDevices.getUserMedia({ video: { ...constraints, deviceId: { exact: pick.deviceId } } });
 }
 
@@ -106,25 +104,6 @@ function setState(next) {
 }
 
 let targetBeat = 0, targetSwell = 0;
-let lastLog = 0;
-function logReadings(pulse, breath) {
-    const now = Date.now();
-    if (now - lastLog < 1000) return;
-    lastLog = now;
-    console.log('[pm] readings ' + JSON.stringify({
-        state,
-        pulse: pulse ? Math.round(pulse.value) : null,
-        conf: pulse ? Math.round(pulse.confidence) : null,
-        stable: pulse ? pulse.stable : null,
-        breath: breath ? Math.round(breath.value) : null,
-        landmarks: points ? points.length : 0,
-        beatRange: [Math.round(beatMin * 100) / 100, Math.round(beatMax * 100) / 100],
-        waveSamples: pulseWave.length,
-    }));
-    beatMin = 1;
-    beatMax = 0;
-}
-
 function onMetrics(buf) {
     const m = decodeMetrics(buf);
     const now = performance.now();
@@ -134,7 +113,6 @@ function onMetrics(buf) {
         lastGood = now;
         bpmShown = smoothBpm(bpmShown, pulse.value);
     }
-    const breath = last(m.breathing?.rate);
 
     for (const s of m.cardio?.arterialPressureTrace ?? []) targetBeat = position(pulseWave, s.value, 90);
     for (const s of m.breathing?.upperTrace ?? []) targetSwell = position(chestWave, s.value, 240);
@@ -149,7 +127,6 @@ function onMetrics(buf) {
         }
         points = lm.value;
     }
-    logReadings(pulse, breath);
 }
 
 // State changes are decided on a steady clock, not on packet arrival.
@@ -157,7 +134,7 @@ function tick() {
     if (state === 'consent') return;
     const now = performance.now();
     if (DEV_SYNTHETIC && now - startedAt > 6000) { lastGood = now; bpmShown = 77; }
-    const next = nextState(state, now, lastGood, reconnecting, LOST_AFTER_MS);
+    const next = nextState(state, now, lastGood, LOST_AFTER_MS);
     if (next !== state) {
         setState(next);
         if (next === 'locked') {
@@ -203,13 +180,12 @@ function paintOverlay() {
     if (els.tint.width !== w || els.tint.height !== h) { els.tint.width = w; els.tint.height = h; }
     const g = els.tint.getContext('2d');
     g.clearRect(0, 0, w, h);
+    if (state === 'consent') return;
 
     const calm = document.body.classList.contains('calm');
     if (DEV_SYNTHETIC) targetBeat = (Math.sin(performance.now() / 1000 * Math.PI * 2 * 1.3) + 1) / 2;
     const shaped = Math.min(1, Math.max(0, (targetBeat - 0.3) / 0.55));
     beat += (shaped - beat) * 0.55;
-    if (beat < beatMin) beatMin = beat;
-    if (beat > beatMax) beatMax = beat;
     swell += (targetSwell - swell) * 0.08;
     const swellAmount = state === 'locked' ? (calm ? 0.004 : 0.012) : 0;
     swellScale = 1 + swellAmount * swell;
@@ -218,7 +194,10 @@ function paintOverlay() {
 
     if (!points || state === 'consent') return;
     const vw = els.preview.videoWidth || 1280, vh = els.preview.videoHeight || 720;
-    const px = (p) => ({ x: (landmarksNormalized ? p.x : p.x / vw) * w, y: (landmarksNormalized ? p.y : p.y / vh) * h });
+    // The video fills the frame with object-fit: cover, so map face points through the same scale and offset.
+    const cover = Math.max(w / vw, h / vh);
+    const offX = (w - vw * cover) / 2, offY = (h - vh * cover) / 2;
+    const px = (p) => ({ x: (landmarksNormalized ? p.x * vw : p.x) * cover + offX, y: (landmarksNormalized ? p.y * vh : p.y) * cover + offY });
 
     if (state === 'finding' || state === 'lost') {
         // A light mesh: the app shows it can see you while it searches.
@@ -265,6 +244,8 @@ let lastPush = 0;
 let captureStart = 0;
 let replayStart = 0;
 let encoding = false;
+let savingImage = false;
+let captureId = 0;
 const clipCtx = clipCanvas.getContext('2d');
 const replayCtx = els.clip.getContext('2d');
 
@@ -462,6 +443,16 @@ function drawLinePortrait(g, f, now) {
     g.restore();
 }
 
+let dateCache = { day: -1, text: '' };
+function dateLabel() {
+    const today = new Date();
+    const day = today.getFullYear() * 400 + today.getMonth() * 32 + today.getDate();
+    if (day !== dateCache.day) {
+        dateCache = { day, text: today.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).toUpperCase() };
+    }
+    return dateCache.text;
+}
+
 // A whole clip frame: flat backdrop, line portrait, beating heart, caption with the name.
 function drawFrame(g, f, name, now) {
     const W = CLIP_W, H = CLIP_H;
@@ -471,7 +462,7 @@ function drawFrame(g, f, name, now) {
     drawDoodleHeart(g, 940, 470, 100, f.beat, now);
 
     // Caption plate: the beat count, then the name, date and product.
-    const date = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).toUpperCase();
+    const date = dateLabel();
     const line2 = (name ? name.toUpperCase() + '  ·  ' : '') + date + '  ·  PULSE MIRROR';
     g.fillStyle = 'rgba(16, 18, 20, 0.78)';
     g.fillRect(40, H - 40 - 96, 700, 96);
@@ -539,6 +530,7 @@ function setLength(index) {
 
 async function capture() {
     if (state !== 'locked' || clipMode) return;
+    const id = ++captureId;
     frames = [];
     lastPush = 0;
     captureStart = performance.now();
@@ -546,17 +538,17 @@ async function capture() {
     setClipMode('recording');
     const began = performance.now();
     let cancelled = false;
-    let lostMs = 0;
     await new Promise((resolve) => {
         const counter = setInterval(() => {
             const elapsed = (performance.now() - began) / 1000;
             els.badge.textContent = 'Recording ' + Math.max(0, Math.ceil(clipSeconds - elapsed));
             setStatus('Recording ' + clipSeconds + ' seconds. Hold still.');
-            lostMs = state === 'locked' ? 0 : lostMs + 200;
-            if (lostMs > 1500 || state === 'consent') cancelled = true;
+            // Cancel on the age of the last good reading, so a frozen beat is never kept.
+            if (performance.now() - lastGood > LOST_AFTER_MS || state === 'consent' || id !== captureId) cancelled = true;
             if (cancelled || elapsed >= clipSeconds) { clearInterval(counter); resolve(); }
         }, 200);
     });
+    if (id !== captureId) return;   // stopped or restarted meanwhile; release() has already reset the screen
     capturing = false;
     els.badge.textContent = 'Camera on';
     if (state === 'consent') { frames = []; return; }   // stopped on purpose; release() has already reset the screen
@@ -576,24 +568,30 @@ async function capture() {
 function dropClip() {
     frames = [];
     encoding = false;
+    savingImage = false;
     els.name.value = '';
+    setBusy(false);
     setClipMode('');
     focusSoon(els.capture);
 }
 
+// Disables the review keys while a file is being prepared. Stop is disabled with them, and
+// never re-enabled on the start screen.
 function setBusy(on) {
     for (const b of [els.save, els.saveImage, els.discard]) b.disabled = on;
+    els.stop.disabled = on || state === 'consent';
 }
 
 async function saveClip() {
-    if (!frames.length || encoding) return;
+    if (!frames.length || encoding || savingImage) return;
     const type = pickClipType();
     if (!type) { setStatus('This computer cannot save video here.', true); return; }
     encoding = true;
     setBusy(true);
     setStatus('Preparing your clip, about ' + clipSeconds + ' seconds.');
     try {
-        const recorder = new MediaRecorder(clipCanvas.captureStream(30), { mimeType: type, videoBitsPerSecond: 6000000 });
+        const canvasStream = clipCanvas.captureStream(30);
+        const recorder = new MediaRecorder(canvasStream, { mimeType: type, videoBitsPerSecond: 6000000 });
         const chunks = [];
         recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
         const stopped = new Promise((resolve) => { recorder.onstop = resolve; });
@@ -605,7 +603,7 @@ async function saveClip() {
         await new Promise((resolve) => {
             const step = () => {
                 const e = performance.now() - began;
-                if (e >= total) return resolve();
+                if (e >= total || !frames.length) return resolve();   // finished, or the clip was dropped meanwhile
                 drawFrame(clipCtx, frameAt(e), name, performance.now());
                 requestAnimationFrame(step);
             };
@@ -613,7 +611,10 @@ async function saveClip() {
         });
         recorder.stop();
         await stopped;
+        for (const t of canvasStream.getTracks()) t.stop();
+        if (!frames.length) return;   // dropped meanwhile; release() has already reset the screen
         const blob = new Blob(chunks, { type });
+        if (blob.size === 0) throw new Error('The recording came out empty.');
         const bytes = new Uint8Array(await blob.arrayBuffer());
         const result = await window.pulseMirror.saveClip(bytes, type.startsWith('video/mp4') ? 'mp4' : 'webm');
         if (result && result.saved) {
@@ -627,13 +628,15 @@ async function saveClip() {
         console.error('[pm] save failed', err);
         setStatus('Could not save the clip. Try again.', true);
     }
+    if (!frames.length) return;
     encoding = false;
     portraitScale = 0;
     setBusy(false);
 }
 
 async function saveImage() {
-    if (!frames.length || encoding) return;
+    if (!frames.length || encoding || savingImage) return;
+    savingImage = true;
     try {
         // The still is the frame at the strongest heartbeat.
         let best = 0;
@@ -642,12 +645,15 @@ async function saveImage() {
         drawFrame(clipCtx, frames[best], nameValue(), performance.now());
         portraitScale = 0;
         const blob = await new Promise((resolve) => clipCanvas.toBlob(resolve, 'image/png'));
+        if (!frames.length) return;   // dropped meanwhile
         const bytes = new Uint8Array(await blob.arrayBuffer());
         const result = await window.pulseMirror.saveClip(bytes, 'png');
         if (result && result.saved) setStatus('Saved ' + String(result.path).split(/[\\/]/).pop() + '.');
     } catch (err) {
         console.error('[pm] save image failed', err);
         setStatus('Could not save the image. Try again.', true);
+    } finally {
+        savingImage = false;
     }
 }
 
@@ -657,61 +663,76 @@ function discardClip() {
     setStatus('Clip discarded.');
 }
 
-// A composed frame of the live face, used only by development test modes.
-function composeClip() {
-    const f = snapshotFrame(performance.now());
-    if (f) drawFrame(clipCtx, f, '', performance.now());
+// ---- The SDK session -----------------------------------------------------------------------
+// `session` is bumped on every start and every release. Anything still running from an earlier
+// session (a pending start, a reconnect, a capture) checks it after each await and gives up.
+let session = 0;
+
+function withTimeout(promise, ms) {
+    return Promise.race([promise, new Promise((resolve) => setTimeout(resolve, ms))]);
+}
+
+async function shutdownSdk(instance) {
+    if (!instance) return;
+    try { await withTimeout(Promise.resolve(instance.stop()), 3000); } catch (err) { console.error('[pm] stop failed', err); }
+    try { instance.destroy(); } catch { /* already gone */ }
 }
 
 function buildSdk() {
     const apiKey = (window.pulseMirror && window.pulseMirror.apiKey) || '';
     if (!apiKey) throw new Error('No API key. Copy .env.example to .env and add PRESAGE_API_KEY.');
-    sdk = new SmartSpectraSDK({
+    const instance = new SmartSpectraSDK({
         apiKey,
         requestedMetrics: [...breathingMetrics, ...cardioMetrics, ...faceMetrics],
         enableAccumulatedOutput: false,
         enableTelemetry: false,
     });
-    sdk.on('metrics', (buf) => {
+    sdk = instance;
+    // Events from an SDK that is no longer the current one are ignored.
+    instance.on('metrics', (buf) => {
+        if (sdk !== instance) return;
         try { onMetrics(buf); } catch (e) { console.error('[pm] metrics decode failed', e); }
     });
-    sdk.on('validationStatus', (code, ts, hint) => {
+    instance.on('validationStatus', (code, ts, hint) => {
+        if (sdk !== instance) return;
         if (code !== ValidationCode.kOk && hint) { hintText = hint; hintAt = performance.now(); }
     });
-    sdk.on('processingStatus', (status) => {
-        console.log('[pm] status ' + status);
+    instance.on('processingStatus', (status) => {
+        if (sdk !== instance) return;
         if (status === ProcessingStatus.kError) reconnect();
     });
-    sdk.on('error', (code, message) => console.error('[pm] sdk error ' + code + ': ' + message));
+    instance.on('error', (code, message) => {
+        if (sdk !== instance) return;
+        console.error('[pm] sdk error ' + code + ': ' + message);
+    });
 }
 
-// The SDK checks its access key online as it runs; a dropped connection ends the
-// session. Keep the camera, rebuild the SDK and carry on, a few times.
-async function connect() {
+async function connect(token) {
+    if (token !== session || !stream) return;
     if (!sdk) buildSdk();
     sdk.useMediaStream(stream);
     await sdk.start();
 }
 
+// The SDK checks its access key online as it runs; a dropped connection ends the
+// session. Keep the camera, rebuild the SDK and carry on, a few times.
 async function reconnect() {
     if (reconnecting || state === 'consent') return;
     reconnecting = true;
+    const token = session;
     try {
-        while (state !== 'consent') {
+        while (state !== 'consent' && token === session) {
             if (retries >= 6) return fail('Lost the connection to the SDK. Check your internet, then press Start camera.');
             retries++;
             console.log('[pm] reconnect ' + retries);
             const old = sdk;
             sdk = null;
-            if (old) {
-                try { await old.stop(); } catch { /* already stopped */ }
-                try { old.destroy(); } catch { /* already gone */ }
-            }
+            await shutdownSdk(old);
             await new Promise((r) => setTimeout(r, 1500));
-            if (state === 'consent') return;
+            if (state === 'consent' || token !== session) return;
             lastGood = 0;
             startedAt = performance.now();
-            try { await connect(); return; } catch (err) { console.error('[pm] reconnect failed', err); }
+            try { await connect(token); return; } catch (err) { console.error('[pm] reconnect failed', err); }
         }
     } finally {
         reconnecting = false;
@@ -721,8 +742,15 @@ async function reconnect() {
 async function start() {
     els.start.disabled = true;
     setStatus('');
+    const token = ++session;
     try {
-        stream = await openLaptopCamera();
+        if (!sdk) buildSdk();   // a missing access key is reported before the camera is opened
+        const opened = await openLaptopCamera();
+        if (token !== session) { for (const t of opened.getTracks()) t.stop(); return; }
+        stream = opened;
+        stream.getVideoTracks()[0].addEventListener('ended', () => {
+            if (token === session && state !== 'consent') fail('The camera stopped. Check that it is connected, then press Start camera.');
+        });
         els.preview.srcObject = stream;
         retries = 0;
         // Show the mirror at once; starting the SDK needs the network and can take a while.
@@ -738,26 +766,28 @@ async function start() {
         setState('finding');
         els.stop.disabled = false;
         focusSoon(els.stop);
-        await connect();
+        await connect(token);
     } catch (err) {
+        if (token !== session) return;
         console.error('[pm] start failed', err);
         await fail(err.message || String(err));
     }
 }
 
 async function release() {
+    session++;
+    captureId++;
     capturing = false;
     dropClip();
-    if (sdk) {
-        try { await sdk.stop(); } catch (err) { console.error('[pm] stop failed', err); }
-        try { sdk.destroy(); } catch { /* already gone */ }
-        sdk = null;
-    }
+    const old = sdk;
+    sdk = null;
+    await shutdownSdk(old);
     if (stream) { for (const t of stream.getTracks()) t.stop(); stream = null; }
     els.preview.srcObject = null;
     points = null;
     targetBeat = 0; targetSwell = 0;
     els.stop.disabled = true;
+    els.capture.disabled = true;
     els.start.disabled = false;
     setState('consent');
     focusSoon(els.start);

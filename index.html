@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data: blob:; media-src 'self' blob: mediastream:">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data: blob:; media-src 'self' blob: mediastream:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>Pulse Mirror</title>
 <link rel="stylesheet" href="styles.css">
 </head>
@@ -31,7 +31,7 @@
     <section class="consent" aria-labelledby="consent-title">
       <h1 id="consent-title">Your heartbeat, in your own face</h1>
       <p>Pulse Mirror uses your camera to find your pulse, then shows it in your reflection.</p>
-      <p class="fine">Video is processed on this computer and is never saved or sent. While it runs, the Presage SDK checks your access key online and sends numbers derived from your pulse and breathing (never video or images) to Presage, which passes them to a language model; this app does not show that output. Telemetry is off. Nothing is stored unless you save a clip. For curiosity only, not a medical device. Sit still and face a lamp or a window.</p>
+      <p class="fine">Video is processed on this computer. This app never saves or sends it, and Presage's documentation says the SDK does not send it either. While it runs, the Presage SDK checks your access key online and sends numbers derived from your pulse and breathing (never video or images) to Presage, which passes them to a language model; this app does not show that output. Telemetry is off. Nothing is stored unless you save a clip. For curiosity only, not a medical device. Sit still and face a lamp or a window.</p>
       <button class="key primary" id="start" type="button">Start camera</button>
     </section>
 

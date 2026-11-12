@@ -34,14 +34,13 @@ test('smoothBpm passes the first value and then blends 70/30', () => {
 
 test('nextState locks on a fresh reading and loses it after the hold time', () => {
     const lostAfter = 3000;
-    assert.equal(logic.nextState('finding', 1000, 0, false, lostAfter), 'finding', 'no reading, no lock');
-    assert.equal(logic.nextState('finding', 1000, 900, false, lostAfter), 'locked', 'a recent reading locks');
-    assert.equal(logic.nextState('finding', 5000, 900, false, lostAfter), 'finding', 'a stale reading does not lock');
-    assert.equal(logic.nextState('locked', 3000, 1000, false, lostAfter), 'locked', 'inside the lost window it stays locked');
-    assert.equal(logic.nextState('locked', 4500, 1000, false, lostAfter), 'lost', 'after the lost window it is lost');
-    assert.equal(logic.nextState('locked', 9000, 1000, true, lostAfter), 'locked', 'never lost while reconnecting');
-    assert.equal(logic.nextState('lost', 2000, 1500, false, lostAfter), 'locked', 'lost recovers on a fresh reading');
-    assert.equal(logic.nextState('consent', 9000, 8999, false, lostAfter), 'consent', 'the start screen never changes by itself');
+    assert.equal(logic.nextState('finding', 1000, 0, lostAfter), 'finding', 'no reading, no lock');
+    assert.equal(logic.nextState('finding', 1000, 900, lostAfter), 'locked', 'a recent reading locks');
+    assert.equal(logic.nextState('finding', 5000, 900, lostAfter), 'finding', 'a stale reading does not lock');
+    assert.equal(logic.nextState('locked', 3000, 1000, lostAfter), 'locked', 'inside the lost window it stays locked');
+    assert.equal(logic.nextState('locked', 4500, 1000, lostAfter), 'lost', 'after the lost window it is lost, even while the SDK reconnects');
+    assert.equal(logic.nextState('lost', 2000, 1500, lostAfter), 'locked', 'lost recovers on a fresh reading');
+    assert.equal(logic.nextState('consent', 9000, 8999, lostAfter), 'consent', 'the start screen never changes by itself');
 });
 
 test('announceBpm changes only on a clear shift', () => {
