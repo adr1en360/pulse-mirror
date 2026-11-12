@@ -130,7 +130,7 @@ body[data-state="consent"] .numeral, body[data-state="consent"] .arm { display: 
   text-transform: uppercase;
 }
 .consent p { margin: 0 0 10px; max-width: 62ch; }
-.consent .fine { color: #e4e6e8; font-size: 14px; }
+.consent .fine { color: var(--ink); font-size: 14px; }
 
 /* State: finding. The leader goes translucent so the live face shows through. */
 body[data-state="finding"] .leader,
