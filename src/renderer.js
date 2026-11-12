@@ -472,7 +472,7 @@ function drawLinePortrait(g, f, now) {
     g.restore();
 }
 
-// A whole clip frame: backdrop, portrait, corner marks, beating heart, caption with the name.
+// A whole clip frame: flat backdrop, line portrait, beating heart, caption with the name.
 function drawFrame(g, f, name, now) {
     const W = CLIP_W, H = CLIP_H;
     drawClipBackdrop(g, W, H);

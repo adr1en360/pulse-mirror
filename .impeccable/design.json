@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-12T00:00:00Z",
+  "title": "Design System: Pulse Mirror",
+  "extensions": {
+    "colorMeta": {
+      "stage": { "role": "neutral", "displayName": "Stage Near-Black", "canonical": "#101214", "tonalRamp": ["#0a0b0c", "#101214", "#1a1d20", "#2a2e32", "#41464b", "#666b71", "#aeb3b9", "#f2f3f4"] },
+      "leader": { "role": "neutral", "displayName": "Leader Grey", "canonical": "#666b71", "tonalRamp": ["#1a1d20", "#2a2e32", "#41464b", "#555a60", "#666b71", "#858a90", "#aeb3b9", "#d4d8dc"] },
+      "ink": { "role": "neutral", "displayName": "Projector White", "canonical": "#f2f3f4", "tonalRamp": ["#666b71", "#858a90", "#aeb3b9", "#c4c8cd", "#d4d8dc", "#e4e6e8", "#f2f3f4", "#ffffff"] },
+      "ink-dim": { "role": "neutral", "displayName": "Dim Ink", "canonical": "#aeb3b9", "tonalRamp": ["#41464b", "#555a60", "#666b71", "#858a90", "#aeb3b9", "#c4c8cd", "#d4d8dc", "#f2f3f4"] },
+      "signal": { "role": "primary", "displayName": "Pulse Vermilion", "canonical": "#ff5b3d", "tonalRamp": ["#4d1409", "#7a2210", "#a83219", "#d44326", "#ff5b3d", "#ff8269", "#ffb4a6", "#ffe3dd"] },
+      "clip-teal": { "role": "neutral", "displayName": "Deep Clip Teal (clip surface only)", "canonical": "#19404c", "tonalRamp": ["#0a1c22", "#102a33", "#19404c", "#245866", "#33717f", "#5a96a3", "#93bfc9", "#d0e6ea"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Leader Numeral", "purpose": "Countdown numeral, outlined, transparent fill." },
+      "headline": { "displayName": "Consent Title", "purpose": "Uppercase consent heading." },
+      "readout": { "displayName": "Beat Readout", "purpose": "BPM in vermilion inside the beat plate." },
+      "label": { "displayName": "Key Label", "purpose": "Keys, field labels, badge." },
+      "body": { "displayName": "Sentence", "purpose": "Status sentence, consent text, name input." }
+    },
+    "shadows": [],
+    "motion": [
+      { "name": "ease", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "All fades and key feedback." },
+      { "name": "arm-sweep", "value": "4s linear infinite (8s when lost)", "purpose": "Leader arm; only while searching; none in calm or reduced motion." },
+      { "name": "key-press", "value": "120ms translateY(1px) scale(0.98)", "purpose": "Tactile key feedback." },
+      { "name": "leader-fall", "value": "700ms (leader, lines, arm), 500ms (numeral), 600ms (beat plate, mirror)", "purpose": "State transitions." }
+    ],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "Key",
+      "kind": "button",
+      "refersTo": "key",
+      "description": "Plain labelled key; outline, transparent.",
+      "html": "<button class=\"ds-key\">Discard</button>",
+      "css": ".ds-key{background:transparent;color:#f2f3f4;border:2px solid #f2f3f4;border-radius:2px;padding:8px 18px;font:800 18px/1 'Big Shoulders Display',sans-serif;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:transform 120ms cubic-bezier(.16,1,.3,1),background-color 120ms cubic-bezier(.16,1,.3,1)}.ds-key:hover{background:rgba(242,243,244,.14)}.ds-key:active{transform:translateY(1px) scale(.98)}.ds-key:focus-visible{outline:2px solid #f2f3f4;outline-offset:3px}"
+    },
+    {
+      "name": "Primary Key",
+      "kind": "button",
+      "refersTo": "key-primary",
+      "description": "Filled key for the main action (Start camera, Capture, Save clip).",
+      "html": "<button class=\"ds-key-primary\">Capture 6 seconds</button>",
+      "css": ".ds-key-primary{background:#f2f3f4;color:#101214;border:2px solid #f2f3f4;border-radius:2px;padding:8px 18px;font:800 18px/1 'Big Shoulders Display',sans-serif;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:transform 120ms cubic-bezier(.16,1,.3,1),background-color 120ms cubic-bezier(.16,1,.3,1)}.ds-key-primary:hover{background:#fff}.ds-key-primary:active{transform:translateY(1px) scale(.98)}.ds-key-primary:focus-visible{outline:2px solid #f2f3f4;outline-offset:3px}"
+    },
+    {
+      "name": "Name Field",
+      "kind": "input",
+      "refersTo": "name-field",
+      "description": "Outlined transparent input for the clip caption name.",
+      "html": "<input class=\"ds-input\" placeholder=\"Add your name\">",
+      "css": ".ds-input{width:190px;padding:8px 12px;border:2px solid #f2f3f4;border-radius:2px;background:transparent;color:#f2f3f4;font:500 16px/1.2 Geist,sans-serif}.ds-input::placeholder{color:#aeb3b9}.ds-input:focus-visible{outline:2px solid #f2f3f4;outline-offset:3px}"
+    },
+    {
+      "name": "Camera-on Badge",
+      "kind": "custom",
+      "refersTo": "badge",
+      "description": "Always-visible consent mark while the camera runs.",
+      "html": "<span class=\"ds-badge\">Camera on</span>",
+      "css": ".ds-badge{display:inline-flex;align-items:center;gap:8px;padding:3px 10px 3px 8px;background:rgba(16,18,20,.78);color:#f2f3f4;font:700 14px/1.4 'Big Shoulders Display',sans-serif;letter-spacing:.1em;text-transform:uppercase}.ds-badge::before{content:'';width:8px;height:8px;border-radius:50%;background:#f2f3f4}"
+    },
+    {
+      "name": "Beat Plate",
+      "kind": "custom",
+      "refersTo": "beat-plate",
+      "description": "The only place the BPM appears, in vermilion, once locked.",
+      "html": "<div class=\"ds-beat\"><span>about</span><b>72</b><span>beats a minute</span></div>",
+      "css": ".ds-beat{display:inline-flex;align-items:baseline;gap:10px;padding:6px 16px 8px 14px;background:rgba(16,18,20,.78);color:#f2f3f4}.ds-beat b{font:800 72px/1 'Big Shoulders Display',sans-serif;font-variant-numeric:tabular-nums;color:#ff5b3d}.ds-beat span{font:700 16px/1 'Big Shoulders Display',sans-serif;letter-spacing:.1em;text-transform:uppercase}"
+    },
+    {
+      "name": "Leader Numeral",
+      "kind": "custom",
+      "refersTo": "typography.display",
+      "description": "Outline-only countdown numeral on leader grey.",
+      "html": "<div class=\"ds-leader\"><span class=\"ds-numeral\">07</span></div>",
+      "css": ".ds-leader{background:#666b71;padding:24px;display:inline-block}.ds-numeral{font:800 120px/1 'Big Shoulders Display','Arial Narrow',sans-serif;letter-spacing:.02em;font-variant-numeric:tabular-nums;color:transparent;-webkit-text-stroke:3px #f2f3f4}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Film Leader",
+    "overview": "The wait to find your pulse is an Academy-leader countdown: a grey field, white hairline crosshair and two rings, a sweeping arm, a large outlined numeral counting seconds. Once the pulse locks, the leader falls away and the person's own mirrored face, tinted vermilion in time with the real waveform, is the only thing that moves. The interface recedes; the face leads. Everything is flat: no shadows, no glows, no rounded pills. One accent, vermilion, is reserved for the live pulse. The saved clip is a second surface in the same world: flat teal, white hand-drawn line portrait, scratchy vermilion hatching and heart, dark caption plate, no photo of the person.",
+    "keyCharacteristics": [
+      "Near-black stage (never pure black) around a 16:9 grey-leader mirror frame.",
+      "White hairlines at 2px; condensed 800-weight uppercase for numerals, keys and labels.",
+      "One accent, vermilion, used only for the live pulse.",
+      "Flat, shadowless, glow-free; depth comes from translucent dark plates over the picture.",
+      "Desktop only (Electron); one screen, no side panel."
+    ],
+    "rules": [
+      { "name": "The One Signal Rule", "body": "Vermilion marks the live pulse and nothing else: not buttons, not links, not errors, not decoration.", "section": "colors" },
+      { "name": "The No Skin Rule", "body": "The clip draws line only, with no skin tone and no photo.", "section": "colors" },
+      { "name": "The Numerals Are The Voice Rule", "body": "Large type is condensed numerals or display-face uppercase only. Sentences never go in the display face.", "section": "typography" },
+      { "name": "The Still Grain Rule", "body": "No flicker, no film-grain animation, no glow.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do reserve vermilion (#ff5b3d) for the live pulse.",
+      "Do keep every surface flat: 2px outlines, no shadows, no glows.",
+      "Do set numerals and labels in Big Shoulders Display 800, sentences in Geist.",
+      "Do give press feedback (1px down, 98% scale) and a focus outline (2px, 3px offset) on every key.",
+      "Do give any new line over the picture a dark under-stroke, and any new text over the picture a 78% near-black plate.",
+      "Do keep the leader's hairlines at 2px with non-scaling strokes.",
+      "Do make anything that moves respect the calm option."
+    ],
+    "donts": [
+      "Don't use pure black; stage is #101214 and ink is #f2f3f4.",
+      "Don't add a second accent, graphs, number tiles or a side panel.",
+      "Don't draw skin colour, photos or video of the person into the clip.",
+      "Don't add flicker, animated grain, glow or blur effects.",
+      "Don't put sentences in the display face or marketing serifs anywhere.",
+      "Don't add viewfinder marks, crosshair or rings to the clip."
+    ]
+  }
+}
