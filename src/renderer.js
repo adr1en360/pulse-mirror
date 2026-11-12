@@ -28,10 +28,6 @@ const LOCK_CONFIDENCE = 40;
 const LOST_AFTER_MS = 3000;
 const STILL_LOOKING_MS = 45000;
 
-// Development only: `electron . --review-locked` drives the beat from a synthetic wave
-// so the locked screen can be tuned without a pulse reading. Never used in normal runs.
-const DEV_SYNTHETIC = location.search.includes('demo=locked');
-
 let sdk = null;
 let stream = null;
 let state = 'consent';
@@ -133,7 +129,6 @@ function onMetrics(buf) {
 function tick() {
     if (state === 'consent') return;
     const now = performance.now();
-    if (DEV_SYNTHETIC && now - startedAt > 6000) { lastGood = now; bpmShown = 77; }
     const next = nextState(state, now, lastGood, LOST_AFTER_MS);
     if (next !== state) {
         setState(next);
@@ -183,7 +178,6 @@ function paintOverlay() {
     if (state === 'consent') return;
 
     const calm = document.body.classList.contains('calm');
-    if (DEV_SYNTHETIC) targetBeat = (Math.sin(performance.now() / 1000 * Math.PI * 2 * 1.3) + 1) / 2;
     const shaped = Math.min(1, Math.max(0, (targetBeat - 0.3) / 0.55));
     beat += (shaped - beat) * 0.55;
     swell += (targetSwell - swell) * 0.08;
