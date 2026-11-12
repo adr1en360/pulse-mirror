@@ -1,0 +1,20 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-font",
+        "value": "ui\",system-ui,sans-serif",
+        "createdAt": "2026-11-12T14:45:56.378Z",
+        "reason": "false positive: tail of the Geist fallback stack (Segoe UI, system-ui, sans-serif); Geist is the documented body face. Assessed by Claude, not confirmed by the user"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "shoulders display\",sans-serif",
+        "createdAt": "2026-11-12T14:45:56.550Z",
+        "reason": "false positive: tail of the Big Shoulders Display fallback stack; that face is the documented display face. Assessed by Claude, not confirmed by the user"
+      }
+    ]
+  }
+}
