@@ -9,6 +9,9 @@ const {
     faceMetrics,
 } = require('@smartspectra/node-sdk/renderer');
 const { decodeMetrics } = require('@smartspectra/node-sdk/messages');
+const logic = require('./logic');
+
+const { position, isGoodPulse, smoothBpm, nextState, announceBpm, toPixels } = logic;
 
 const $ = (id) => document.getElementById(id);
 const els = {
@@ -102,15 +105,6 @@ function setState(next) {
     console.log('[pm] state ' + next);
 }
 
-// Scale a buffer's latest value into 0..1 against its own recent range.
-function position(buf, value, size) {
-    buf.push(value);
-    if (buf.length > size) buf.shift();
-    let lo = Infinity, hi = -Infinity;
-    for (const v of buf) { if (v < lo) lo = v; if (v > hi) hi = v; }
-    return hi > lo ? (value - lo) / (hi - lo) : 0.5;
-}
-
 let targetBeat = 0, targetSwell = 0;
 let lastLog = 0;
 function logReadings(pulse, breath) {
@@ -136,9 +130,9 @@ function onMetrics(buf) {
     const now = performance.now();
 
     const pulse = last(m.cardio?.pulseRate);
-    if (pulse && pulse.confidence >= LOCK_CONFIDENCE && pulse.stable) {
+    if (isGoodPulse(pulse, LOCK_CONFIDENCE)) {
         lastGood = now;
-        bpmShown = bpmShown === null ? pulse.value : bpmShown * 0.7 + pulse.value * 0.3;
+        bpmShown = smoothBpm(bpmShown, pulse.value);
     }
     const breath = last(m.breathing?.rate);
 
@@ -163,12 +157,13 @@ function tick() {
     if (state === 'consent') return;
     const now = performance.now();
     if (DEV_SYNTHETIC && now - startedAt > 6000) { lastGood = now; bpmShown = 77; }
-    if ((state === 'finding' || state === 'lost') && lastGood && now - lastGood < 1500) {
-        setState('locked');
-        retries = 0;
-        if (!clipMode) focusSoon(els.capture);
-    } else if (state === 'locked' && !reconnecting && now - lastGood > LOST_AFTER_MS) {
-        setState('lost');
+    const next = nextState(state, now, lastGood, reconnecting, LOST_AFTER_MS);
+    if (next !== state) {
+        setState(next);
+        if (next === 'locked') {
+            retries = 0;
+            if (!clipMode) focusSoon(els.capture);
+        }
     }
 
     const elapsed = Math.floor((now - startedAt) / 1000);
@@ -181,8 +176,7 @@ function tick() {
     } else if (reconnecting) {
         setStatus('Connection dropped. Reconnecting...');
     } else if (state === 'locked') {
-        const bpmNow = bpmShown === null ? null : Math.round(bpmShown);
-        if (bpmNow !== null && (announcedBpm === null || Math.abs(bpmNow - announcedBpm) >= 4)) announcedBpm = bpmNow;
+        announcedBpm = announceBpm(announcedBpm, bpmShown);
         setStatus(announcedBpm === null
             ? 'Your pulse is in the mirror. Sit still to keep it.'
             : 'Your pulse is in the mirror, about ' + announcedBpm + ' beats a minute. Sit still to keep it.');
@@ -373,11 +367,7 @@ function drawClipBackdrop(g, W, H) {
 function snapshotFrame(now) {
     if (!points) return null;
     const vw = els.preview.videoWidth || 1280, vh = els.preview.videoHeight || 720;
-    const pts = new Float32Array(points.length * 2);
-    for (let i = 0; i < points.length; i++) {
-        pts[2 * i] = landmarksNormalized ? points[i].x * vw : points[i].x;
-        pts[2 * i + 1] = landmarksNormalized ? points[i].y * vh : points[i].y;
-    }
+    const pts = toPixels(points, landmarksNormalized, vw, vh);
     return { pts, vw, vh, beat, swell, bpm: bpmShown, calm: document.body.classList.contains('calm') };
 }
 
@@ -501,16 +491,11 @@ function nameValue() {
 // Frames carry real timestamps, so a clip lasts exactly as long as it was recorded,
 // whatever rate the screen happened to draw at.
 function clipDuration() {
-    return Math.max(1, frames[frames.length - 1].t + FRAME_MS);
+    return logic.clipDuration(frames, FRAME_MS);
 }
 
 function frameAt(ms) {
-    let lo = 0, hi = frames.length - 1;
-    while (lo < hi) {
-        const mid = (lo + hi + 1) >> 1;
-        if (frames[mid].t <= ms) lo = mid; else hi = mid - 1;
-    }
-    return frames[lo];
+    return logic.frameAt(frames, ms);
 }
 
 function draw() {

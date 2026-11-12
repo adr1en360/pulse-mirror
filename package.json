@@ -6,7 +6,8 @@
   "main": "main.js",
   "scripts": {
     "build": "esbuild src/renderer.js --bundle --outfile=dist/renderer.bundle.js --platform=browser --format=iife --log-level=warning",
-    "start": "npm run build && electron ."
+    "start": "npm run build && electron .",
+    "test": "node --test"
   },
   "dependencies": {
     "@smartspectra/node-sdk": "3.4.0"
