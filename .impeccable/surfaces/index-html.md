@@ -13,7 +13,7 @@ Mode: Experience. The face leads; the interface recedes.
 
 THESIS: A home-movie projection of your own heartbeat. The one idea: the wait to find your pulse is an old film-leader countdown, and the pulse, once found, is the only thing that moves. It refuses the category default of a dark health-app panel with graphs and number tiles.
 
-OWN-WORLD: Academy-leader grey field with white hairline crosshair and concentric circles over a near-black stage. White condensed numerals as the only large type; a quiet humanist sans for sentences. One signal colour, vermilion, reserved for the live pulse and nothing else. Grain stays still. No flicker, no glow. Controls are plain labelled keys; a HOLD flag appears when a frame is frozen. The doodle heart looks scratched into film by hand.
+OWN-WORLD: Academy-leader grey field with white hairline crosshair and concentric circles over a near-black stage. White condensed numerals as the only large type; a quiet humanist sans for sentences. One signal colour, vermilion, reserved for the live pulse and nothing else. Grain stays still. No flicker, no glow. Controls are plain labelled keys. The doodle heart looks scratched into film by hand.
 
 STORY: A curious person understands within seconds that the camera is looking for their heartbeat, trusts it because the camera-on mark and consent are plain, watches the countdown arm stop and their own face begin to beat, and captures a six-second loop to send to someone.
 
