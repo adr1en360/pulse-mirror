@@ -3,3 +3,8 @@ node_modules/
 dist/
 captures/
 *.log
+.claude/worktrees/
+.impeccable/mocks/
+.impeccable/questions/
+.impeccable/review/
+.impeccable/hook.cache.json
