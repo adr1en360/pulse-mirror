@@ -2,57 +2,51 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: mediastream:">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data: blob:; media-src 'self' blob: mediastream:">
 <title>Pulse Mirror</title>
-<style>
-  :root { --bg:#0c0d11; --panel:#161820; --line:#262a36; --text:#eceef4; --dim:#8b91a3; --accent:#ff5a6e; --ok:#58d68d; }
-  * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.45 "Segoe UI", system-ui, sans-serif; }
-  main { max-width:1040px; margin:0 auto; padding:20px; display:grid; grid-template-columns: minmax(0,1.5fr) minmax(0,1fr); gap:20px; }
-  .stage { position:relative; background:#000; border-radius:16px; overflow:hidden; aspect-ratio:16/9; }
-  video { width:100%; height:100%; object-fit:cover; transform:scaleX(-1); display:block; }
-  .badge { position:absolute; top:12px; left:12px; padding:4px 12px; border-radius:999px; background:rgba(0,0,0,.6); font-size:13px; }
-  .badge.on::before { content:""; display:inline-block; width:8px; height:8px; margin-right:8px; border-radius:50%; background:var(--accent); }
-  .hint { position:absolute; left:0; right:0; bottom:14px; text-align:center; font-size:15px; text-shadow:0 1px 3px #000; }
-  aside { background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:18px; display:flex; flex-direction:column; gap:14px; }
-  h1 { margin:0; font-size:20px; letter-spacing:.2px; }
-  .sub { color:var(--dim); margin:-8px 0 0; }
-  .read { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
-  .read div { background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:10px 12px; }
-  .read b { display:block; font-size:26px; }
-  .read span { color:var(--dim); font-size:12px; }
-  canvas { width:100%; height:90px; background:var(--bg); border:1px solid var(--line); border-radius:12px; }
-  .row { display:flex; gap:10px; }
-  button { flex:1; border:0; border-radius:999px; padding:10px 18px; font:inherit; font-weight:600; cursor:pointer; background:#d63a50; color:#fff; }
-  button.ghost { background:transparent; color:var(--text); border:1px solid var(--line); }
-  button:disabled { opacity:.4; cursor:default; }
-  #error { color:#ff9b9b; font-size:13px; min-height:18px; }
-</style>
+<link rel="stylesheet" href="styles.css">
 </head>
-<body>
-<main>
-  <div class="stage">
-    <video id="preview" autoplay muted playsinline></video>
-    <div class="badge" id="badge">camera off</div>
-    <div class="hint" id="hint"></div>
+<body data-state="consent">
+<main class="stage">
+  <div class="frame" id="frame">
+    <div class="mirror" id="mirror">
+      <video id="preview" autoplay muted playsinline></video>
+    </div>
+
+    <div class="leader" aria-hidden="true">
+      <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+        <g class="line">
+          <line x1="0" y1="450" x2="1600" y2="450"/>
+          <line x1="800" y1="0" x2="800" y2="900"/>
+          <circle cx="800" cy="450" r="360"/>
+          <circle cx="800" cy="450" r="300"/>
+        </g>
+      </svg>
+      <div class="arm"></div>
+      <div class="numeral" id="numeral">00</div>
+    </div>
+
+    <canvas class="overlay" id="tint" aria-hidden="true"></canvas>
+
+    <section class="consent" aria-labelledby="consent-title">
+      <h1 id="consent-title">Your heartbeat, in your own face</h1>
+      <p>Pulse Mirror uses your camera to find your pulse, then shows it in your reflection.</p>
+      <p class="fine">Video is processed on this computer and is never saved or sent. The Presage SDK checks your access key online; its telemetry is off. Nothing is stored unless you choose to save a clip. For curiosity only, not a medical device. Sit still and face a lamp or a window.</p>
+      <button class="key primary" id="start" type="button">Start camera</button>
+    </section>
+
+    <div class="badge" id="badge">Camera on</div>
+    <div class="beat" id="beat" aria-live="off"><span>about</span><b id="bpm">--</b><span>beats a minute</span></div>
   </div>
-  <aside>
-    <h1>Pulse Mirror</h1>
-    <p class="sub">Slice 1: live readings from the SDK. The mirror effect comes next.</p>
-    <div class="read">
-      <div><b id="pulse">–</b><span>beats a minute</span></div>
-      <div><b id="conf">–</b><span>pulse confidence</span></div>
-      <div><b id="breath">–</b><span>breaths a minute</span></div>
-      <div><b id="stable">–</b><span>pulse stable</span></div>
-    </div>
-    <canvas id="wave" width="600" height="180"></canvas>
-    <div class="row">
-      <button id="start">Start camera</button>
-      <button id="stop" class="ghost" disabled>Stop</button>
-    </div>
-    <div id="error"></div>
-  </aside>
 </main>
+
+<footer class="strip">
+  <p class="status" id="status" role="status" aria-live="polite"></p>
+  <div class="keys">
+    <button class="key" id="calm" type="button" aria-pressed="false">Calm motion</button>
+    <button class="key" id="stop" type="button" disabled>Stop</button>
+  </div>
+</footer>
 <script src="dist/renderer.bundle.js"></script>
 </body>
 </html>
