@@ -2,7 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { app, BrowserWindow, ipcMain, session } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, session } = require('electron');
 const { bindSmartSpectraIpc } = require('@smartspectra/node-sdk/main');
 
 // The API key lives in .env (gitignored): PRESAGE_API_KEY=...
@@ -20,6 +20,32 @@ ipcMain.on('pm:config', (event) => {
     event.returnValue = { apiKey: readEnvKey() };
 });
 
+let mainWindow = null;
+
+// Save a captured clip. The only way a clip ever leaves memory: a file the user chooses.
+// In a review run the file goes to .impeccable/review/ instead of the dialog.
+ipcMain.handle('pm:save', async (event, bytes, ext) => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) return { saved: false };
+    const safeExt = ext === 'mp4' ? 'mp4' : 'webm';
+    const reviewDir = path.join(__dirname, '.impeccable', 'review');
+    let target;
+    if (process.argv.includes('--review-locked')) {
+        fs.mkdirSync(reviewDir, { recursive: true });
+        target = path.join(reviewDir, 'clip.' + safeExt);
+    } else {
+        const stamp = new Date().toISOString().slice(0, 10);
+        const result = await dialog.showSaveDialog(mainWindow, {
+            title: 'Save your clip',
+            defaultPath: 'pulse-mirror-' + stamp + '.' + safeExt,
+            filters: [{ name: 'Video', extensions: [safeExt] }],
+        });
+        if (result.canceled || !result.filePath) return { saved: false };
+        target = result.filePath;
+    }
+    fs.writeFileSync(target, Buffer.from(bytes));
+    return { saved: true, path: target };
+});
+
 function createWindow() {
     const win = new BrowserWindow({
         width: 1100,
@@ -33,6 +59,7 @@ function createWindow() {
             nodeIntegration: false,
         },
     });
+    mainWindow = win;
     bindSmartSpectraIpc(win);
     win.setMenuBarVisibility(false);
     win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -62,9 +89,13 @@ function createWindow() {
 function reviewRun(win, demo) {
     const dir = path.join(__dirname, '.impeccable', 'review');
     fs.mkdirSync(dir, { recursive: true });
-    const shots = demo ? [1, 12, 15, 17, 19, 21, 26] : [1, 10, 25, 40, 55, 70, 90];
+    const shots = demo ? [11, 14, 17, 20, 22, 25, 28] : [1, 10, 25, 40, 55, 70, 90];
     win.webContents.once('did-finish-load', () => {
         setTimeout(() => win.webContents.executeJavaScript('document.getElementById("start").click()'), 3000);
+        if (demo) {
+            setTimeout(() => win.webContents.executeJavaScript('document.getElementById("capture").click()'), 12000);
+            setTimeout(() => win.webContents.executeJavaScript('document.getElementById("save").click()'), 21000);
+        }
         shots.forEach((s, i) => setTimeout(async () => {
             const image = await win.webContents.capturePage();
             fs.writeFileSync(path.join(dir, 'state-' + String(i + 1).padStart(2, '0') + '-t' + s + '.png'), image.toPNG());

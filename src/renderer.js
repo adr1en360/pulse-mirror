@@ -15,6 +15,7 @@ const els = {
     preview: $('preview'), frame: $('frame'), mirror: $('mirror'), tint: $('tint'),
     numeral: $('numeral'), bpm: $('bpm'), status: $('status'),
     start: $('start'), stop: $('stop'), calm: $('calm'),
+    capture: $('capture'), save: $('save'), discard: $('discard'), clip: $('clip'), badge: $('badge'),
 };
 
 // A pulse counts as found at this confidence or higher (and marked stable).
@@ -37,6 +38,19 @@ let hintText = '';
 let hintAt = 0;
 let retries = 0;
 let reconnecting = false;
+
+// Capture: six seconds of the composed mirror, kept in memory until the user saves or discards it.
+const CLIP_SECONDS = 6;
+const CLIP_W = 1280, CLIP_H = 720;
+const clipCanvas = document.createElement('canvas');
+clipCanvas.width = CLIP_W;
+clipCanvas.height = CLIP_H;
+let recording = false;
+let clipMode = '';   // '', 'recording' or 'review'
+let clipBlob = null;
+let clipExt = 'webm';
+let clipUrl = null;
+let swellScale = 1;
 
 // Live signal buffers. The pulse waveform drives the throb; the chest trace drives the swell.
 const pulseWave = [];
@@ -148,7 +162,10 @@ function tick() {
     els.numeral.textContent = String(Math.min(elapsed, 99)).padStart(2, '0');
     if (bpmShown !== null) els.bpm.textContent = String(Math.round(bpmShown));
 
-    if (reconnecting) {
+    els.capture.disabled = !(state === 'locked' && !clipMode);
+    if (clipMode) {
+        // The clip flow owns the status line.
+    } else if (reconnecting) {
         setStatus('Connection dropped. Reconnecting...');
     } else if (state === 'locked') {
         setStatus('Your pulse is in the mirror. Sit still to keep it.');
@@ -166,8 +183,7 @@ function tick() {
 // MediaPipe face-mesh outline: the tint covers the whole face, not three spots.
 const FACE_OVAL = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109];
 
-function draw() {
-    requestAnimationFrame(draw);
+function paintOverlay() {
     const frame = els.frame.getBoundingClientRect();
     const w = Math.round(frame.width), h = Math.round(frame.height);
     if (els.tint.width !== w || els.tint.height !== h) { els.tint.width = w; els.tint.height = h; }
@@ -179,7 +195,8 @@ function draw() {
     beat += (targetBeat - beat) * 0.55;
     swell += (targetSwell - swell) * 0.08;
     const swellAmount = state === 'locked' ? (calm ? 0.004 : 0.012) : 0;
-    els.mirror.style.setProperty('--swell', String(1 + swellAmount * swell));
+    swellScale = 1 + swellAmount * swell;
+    els.mirror.style.setProperty('--swell', String(swellScale));
     els.tint.style.setProperty('--swell', String(1 + swellAmount * swell));
 
     if (!points || state === 'consent') return;
@@ -206,13 +223,183 @@ function draw() {
         if (i === 0) g.moveTo(p.x, p.y); else g.lineTo(p.x, p.y);
     });
     g.closePath();
-    g.fillStyle = 'rgba(255, 91, 61, ' + Math.min(1, 0.55 * strength) + ')';
+    g.fillStyle = 'rgba(255, 91, 61, ' + Math.min(1, 0.42 * strength) + ')';
     g.globalCompositeOperation = 'soft-light';
     g.fill();
     g.globalCompositeOperation = 'source-over';
-    g.fillStyle = 'rgba(255, 91, 61, ' + 0.16 * strength + ')';
+    g.fillStyle = 'rgba(255, 91, 61, ' + 0.10 * strength + ')';
     g.fill();
     g.restore();
+}
+
+// The share clip: the mirror, a scratched-in heart that beats with the live pulse, and a caption.
+function heartPoint(a, size) {
+    return {
+        x: 16 * Math.pow(Math.sin(a), 3) * size / 17,
+        y: -(13 * Math.cos(a) - 5 * Math.cos(2 * a) - 2 * Math.cos(3 * a) - Math.cos(4 * a)) * size / 17,
+    };
+}
+
+// Drawn like frame-by-frame film animation: the lines are redrawn about nine times a second.
+function drawDoodleHeart(g, cx, cy, size, beatNow, now) {
+    const s = size * (1 + 0.18 * beatNow);
+    const seed = Math.floor(now / 110);
+    const rnd = (i) => { const x = Math.sin(seed * 12.9898 + i * 78.233) * 43758.5453; return x - Math.floor(x) - 0.5; };
+    g.save();
+    g.lineCap = 'round';
+    g.lineJoin = 'round';
+    for (const pass of [0, 1]) {
+        g.beginPath();
+        for (let i = 0; i <= 48; i++) {
+            const p = heartPoint((i / 48) * Math.PI * 2, s);
+            const j = s * 0.07;
+            const x = cx + p.x + rnd(i + pass * 60) * j;
+            const y = cy + p.y + rnd(i + pass * 60 + 200) * j;
+            if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
+        }
+        g.closePath();
+        g.strokeStyle = pass === 0 ? 'rgba(16, 18, 20, 0.55)' : '#ff5b3d';
+        g.lineWidth = pass === 0 ? 9 : 4.5;
+        g.stroke();
+    }
+    // Hatching inside the outline, clipped to the clean heart shape.
+    g.beginPath();
+    for (let i = 0; i <= 48; i++) {
+        const p = heartPoint((i / 48) * Math.PI * 2, s);
+        if (i === 0) g.moveTo(cx + p.x, cy + p.y); else g.lineTo(cx + p.x, cy + p.y);
+    }
+    g.closePath();
+    g.clip();
+    g.strokeStyle = 'rgba(255, 91, 61, 0.8)';
+    g.lineWidth = 3;
+    for (let k = -7; k <= 7; k++) {
+        const x0 = cx + k * s * 0.13;
+        g.beginPath();
+        g.moveTo(x0 - s * 0.9 + rnd(400 + k) * 5, cy + s * 0.9);
+        g.lineTo(x0 + s * 0.9 + rnd(500 + k) * 5, cy - s * 0.9);
+        g.stroke();
+    }
+    g.restore();
+}
+
+function composeClip() {
+    const g = clipCanvas.getContext('2d');
+    const W = CLIP_W, H = CLIP_H, now = performance.now();
+    g.fillStyle = '#101214';
+    g.fillRect(0, 0, W, H);
+    g.save();
+    g.translate(W / 2, H / 2);
+    g.scale(-swellScale, swellScale);          // the mirror view is flipped, so the clip is too
+    g.drawImage(els.preview, -W / 2, -H / 2, W, H);
+    if (els.tint.width > 0 && els.tint.height > 0) g.drawImage(els.tint, -W / 2, -H / 2, W, H);
+    g.restore();
+
+    // Registration ticks in the corners, from the film leader.
+    g.strokeStyle = 'rgba(242, 243, 244, 0.85)';
+    g.lineWidth = 3;
+    const inset = 22, tick = 34;
+    for (const [x, y, dx, dy] of [[inset, inset, 1, 1], [W - inset, inset, -1, 1], [inset, H - inset, 1, -1], [W - inset, H - inset, -1, -1]]) {
+        g.beginPath();
+        g.moveTo(x + dx * tick, y); g.lineTo(x, y); g.lineTo(x, y + dy * tick);
+        g.stroke();
+    }
+
+    drawDoodleHeart(g, W - 150, H - 150, 92, beat, now);
+
+    // Caption plate.
+    const date = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).toUpperCase();
+    g.fillStyle = 'rgba(16, 18, 20, 0.78)';
+    g.fillRect(40, H - 40 - 96, 640, 96);
+    g.fillStyle = '#f2f3f4';
+    g.textBaseline = 'alphabetic';
+    g.font = '800 46px "Big Shoulders Display", sans-serif';
+    g.fillText('ABOUT ' + (bpmShown === null ? '--' : Math.round(bpmShown)) + ' BEATS A MINUTE', 62, H - 40 - 48);
+    g.fillStyle = '#aeb3b9';
+    g.font = '500 20px "Geist", sans-serif';
+    g.fillText(date + '  ·  PULSE MIRROR', 62, H - 40 - 18);
+}
+
+function draw() {
+    requestAnimationFrame(draw);
+    paintOverlay();
+    if (recording) composeClip();
+}
+
+function pickClipType() {
+    const types = ['video/mp4;codecs=avc1.640028', 'video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+    return types.find((t) => MediaRecorder.isTypeSupported(t)) || '';
+}
+
+function setClipMode(mode) {
+    clipMode = mode;
+    document.body.dataset.clip = mode;
+    els.save.hidden = mode !== 'review';
+    els.discard.hidden = mode !== 'review';
+    els.clip.hidden = mode !== 'review';
+    els.capture.hidden = mode === 'review';
+}
+
+async function capture() {
+    if (state !== 'locked' || clipMode) return;
+    const type = pickClipType();
+    if (!type) { setStatus('This computer cannot record video here.', true); return; }
+    clipExt = type.startsWith('video/mp4') ? 'mp4' : 'webm';
+    console.log('[pm] recording as ' + type);
+    setClipMode('recording');
+    const recorder = new MediaRecorder(clipCanvas.captureStream(30), { mimeType: type, videoBitsPerSecond: 6000000 });
+    const chunks = [];
+    recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+    const stopped = new Promise((resolve) => { recorder.onstop = resolve; });
+    const began = performance.now();
+    recording = true;
+    composeClip();
+    recorder.start(250);
+    const counter = setInterval(() => {
+        const left = Math.max(0, CLIP_SECONDS - Math.floor((performance.now() - began) / 1000));
+        els.badge.textContent = 'Recording ' + left;
+        setStatus('Recording ' + CLIP_SECONDS + ' seconds. Hold still.');
+    }, 200);
+    setTimeout(() => recorder.stop(), CLIP_SECONDS * 1000);
+    await stopped;
+    clearInterval(counter);
+    recording = false;
+    els.badge.textContent = 'Camera on';
+    clipBlob = new Blob(chunks, { type });
+    clipUrl = URL.createObjectURL(clipBlob);
+    els.clip.src = clipUrl;
+    setClipMode('review');
+    els.clip.play().catch(() => {});
+    setStatus('Your clip is ready. Save it or discard it. Nothing leaves this computer unless you save it.');
+}
+
+function dropClip() {
+    if (clipUrl) URL.revokeObjectURL(clipUrl);
+    clipUrl = null;
+    clipBlob = null;
+    els.clip.removeAttribute('src');
+    els.clip.load();
+    setClipMode('');
+}
+
+async function saveClip() {
+    if (!clipBlob) return;
+    try {
+        const bytes = new Uint8Array(await clipBlob.arrayBuffer());
+        const result = await window.pulseMirror.saveClip(bytes, clipExt);
+        if (result && result.saved) {
+            const name = String(result.path).split(/[\\/]/).pop();
+            dropClip();
+            setStatus('Saved ' + name + '.');
+        }
+    } catch (err) {
+        console.error('[pm] save failed', err);
+        setStatus('Could not save the clip. Try again.', true);
+    }
+}
+
+function discardClip() {
+    dropClip();
+    setStatus('Clip discarded.');
 }
 
 function buildSdk() {
@@ -296,6 +483,8 @@ async function start() {
 }
 
 async function release() {
+    recording = false;
+    dropClip();
     if (sdk) {
         try { await sdk.stop(); } catch (err) { console.error('[pm] stop failed', err); }
         try { sdk.destroy(); } catch { /* already gone */ }
@@ -323,6 +512,9 @@ async function fail(message) {
 // Lets the main process shut the SDK down cleanly before the window closes.
 window.pmShutdown = release;
 
+els.capture.addEventListener('click', capture);
+els.save.addEventListener('click', saveClip);
+els.discard.addEventListener('click', discardClip);
 els.start.addEventListener('click', start);
 els.stop.addEventListener('click', stop);
 els.calm.addEventListener('click', () => {
@@ -330,6 +522,10 @@ els.calm.addEventListener('click', () => {
     document.body.classList.toggle('calm', on);
     els.calm.setAttribute('aria-pressed', String(on));
 });
-window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && state !== 'consent') stop(); });
+window.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (clipMode === 'review') discardClip();
+    else if (state !== 'consent' && !recording) stop();
+});
 setInterval(tick, 250);
 requestAnimationFrame(draw);

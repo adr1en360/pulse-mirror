@@ -211,6 +211,17 @@ body[data-state="locked"] .beat { opacity: 1; }
 .key:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
 .consent .key { margin-top: 12px; }
 
+/* The captured clip, looping in place for review. It carries its own caption and doodle. */
+.clip {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: var(--stage);
+}
+body[data-clip="review"] .beat { display: none; }
+
 /* Calm motion: no sweep, and the script gives the throb less amplitude. */
 body.calm .arm { animation: none; opacity: 0; }
 @media (prefers-reduced-motion: reduce) { .arm { animation: none; opacity: 0; } }
