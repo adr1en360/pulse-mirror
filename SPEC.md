@@ -2,6 +2,9 @@
 
 Status: FROZEN on 11 Nov 2026. Changes need the owner's explicit OK.
 
+Change log:
+- 12 Nov 2026, owner's request: the share clip no longer contains the person's video. It shows a hand-drawn, animated line portrait traced live from the face landmarks (so the person's own smile, blinks, mouth and eyebrows move it), with the beating heart doodle and the BPM caption. The SDK's emotion labels are not used (they failed testing).
+
 ## One line
 
 A mirror that shows your heartbeat in your own face.
@@ -22,7 +25,7 @@ Electron desktop app on Windows x64 (SmartSpectra Node/Electron SDK). Laptop bui
 2. **Finding.** Live mirror with a light face mesh. Friendly hints from the SDK's validation codes (too dark, move closer, hold still). A calm "finding your heartbeat" ring fills the wait, which is about 20 to 30 seconds in testing.
 3. **Locked.** Triggered when pulse confidence is at least 40 and the SDK marks it stable. The face throbs with the live pulse waveform; the chest/face swell follows the breathing trace. Shows "about N beats a minute" as plain information.
 4. **Lost.** If confidence stays below 40 for more than 3 seconds, the throb fades out and the app says "can't find your pulse, check the light". It never fakes a beat.
-5. **Capture and share.** A key press records six seconds. A preview shows a looping share clip: the mirror with your face beating, a hand-drawn-style heart character beside it beating at your live rhythm, and a caption ("about N beats a minute", date, "Pulse Mirror"). Save writes an mp4 (webm if mp4 is unavailable) to a local file you choose; Discard throws it away. The app never uploads anything; the user shares the file themselves.
+5. **Capture and share.** A key press records six seconds. A preview shows a looping share clip: a hand-drawn line portrait of the person, traced from the live face landmarks in scratchy film-animation lines on the grey leader field, so their own expression moves it; their cheeks hatch with each pulse and the drawing breathes. Beside it a hand-drawn heart beats at the live pulse, and a caption reads "about N beats a minute", the date and "Pulse Mirror". The clip contains no photo or video of the person. Save writes an mp4 (webm if mp4 is unavailable) to a local file the user chooses; Discard throws it away. If the pulse is lost mid-recording the capture is cancelled. The app never uploads anything; the user shares the file themselves.
 
 ## Signal map (what each reading does)
 
@@ -31,7 +34,8 @@ Electron desktop app on Windows x64 (SmartSpectra Node/Electron SDK). Laptop bui
 | Pulse waveform + pulse rate + confidence + stable flag | Drives the throb; gates Locked and Lost |
 | Breathing upper trace | Drives the slow swell |
 | Face landmarks (478 points) | Place the tint on cheeks and forehead; confirm one face |
-| Pulse waveform (again) | Beats the doodle heart character, in the app and in the share clip |
+| Pulse waveform (again) | Beats the doodle heart and hatches the cheeks of the line portrait in the share clip |
+| Face landmarks (again) | Drawn as the line portrait in the share clip: face outline, brows, eyes, pupils, lips, nose |
 | Validation codes | Hints in Finding |
 
 ## Throb method
