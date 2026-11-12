@@ -241,7 +241,7 @@ function paintOverlay() {
 
 // ---- The share clip ---------------------------------------------------------------------
 // The portrait, heart and caption are drawn from recorded frames of data (face points, beat,
-// breath, BPM, skin tone), never from video. A capture stores that data; the review screen
+// breath, BPM), never from video. A capture stores that data; the review screen
 // replays it live, so a name typed afterwards shows at once; saving renders it into an mp4
 // or a png with the name in it.
 
@@ -317,36 +317,9 @@ const BROW_RIGHT = [[46, 53, 52, 65, 55], [70, 63, 105, 66, 107]];
 const NOSE_BRIDGE = [168, 6, 197, 195, 5, 4];
 const NOSE_BASE = [98, 97, 2, 326, 327];
 const IRIS_LEFT = 468, IRIS_RIGHT = 473;
-const SKIN_SPOTS = [151, 9, 50, 280, 205, 425];
-const INK = '#16181b';
+const LINE = '#f2f3f4';
+const MOUTH_GAIN = 1.35, BROW_GAIN = 1.4;   // a mild boost so expressions read clearly
 let portraitScale = 0;
-let skin = { r: 150, g: 105, b: 85 };   // overwritten by the person's own skin tone once sampled
-let skinAt = 0;
-const skinCanvas = document.createElement('canvas');
-skinCanvas.width = 160;
-skinCanvas.height = 90;
-
-// Reads the person's own skin colour from a few small patches, so the drawing is of them.
-// Only a colour is kept; no picture of the person goes into the clip.
-function sampleSkin(P, vw, vh, now) {
-    if (now - skinAt < 400 || !els.preview.videoWidth) return;
-    skinAt = now;
-    const c = skinCanvas.getContext('2d', { willReadFrequently: true });
-    c.drawImage(els.preview, 0, 0, skinCanvas.width, skinCanvas.height);
-    let r = 0, g = 0, b = 0, n = 0;
-    for (const i of SKIN_SPOTS) {
-        const p = P(i);
-        const x = Math.round((p.x / vw) * skinCanvas.width), y = Math.round((p.y / vh) * skinCanvas.height);
-        if (x < 3 || y < 3 || x > skinCanvas.width - 4 || y > skinCanvas.height - 4) continue;
-        const d = c.getImageData(x - 2, y - 2, 5, 5).data;
-        for (let k = 0; k < d.length; k += 4) { r += d[k]; g += d[k + 1]; b += d[k + 2]; n++; }
-    }
-    if (!n) return;
-    const m = 0.3;
-    skin = { r: skin.r * (1 - m) + (r / n) * m, g: skin.g * (1 - m) + (g / n) * m, b: skin.b * (1 - m) + (b / n) * m };
-}
-
-const rgb = (c, f = 1) => 'rgb(' + Math.round(Math.min(255, c.r * f)) + ',' + Math.round(Math.min(255, c.g * f)) + ',' + Math.round(Math.min(255, c.b * f)) + ')';
 
 // A smooth hand-drawn curve through the points.
 function curve(g, pts, closed) {
@@ -392,8 +365,7 @@ function snapshotFrame(now) {
         pts[2 * i] = landmarksNormalized ? points[i].x * vw : points[i].x;
         pts[2 * i + 1] = landmarksNormalized ? points[i].y * vh : points[i].y;
     }
-    sampleSkin((i) => ({ x: pts[2 * i], y: pts[2 * i + 1] }), vw, vh, now);
-    return { pts, vw, vh, beat, swell, bpm: bpmShown, calm: document.body.classList.contains('calm'), skin: { r: skin.r, g: skin.g, b: skin.b } };
+    return { pts, vw, vh, beat, swell, bpm: bpmShown, calm: document.body.classList.contains('calm') };
 }
 
 // Traces the face points as a hand-drawn portrait. The person's own smile, blinks, mouth,
@@ -419,25 +391,36 @@ function drawLinePortrait(g, f, now) {
     g.lineCap = 'round';
     g.lineJoin = 'round';
 
-    // Skin: a flat fill in the person's own tone, with a darker hand-drawn outline.
-    curve(g, pts(FACE_OVAL, 0), true);
-    g.fillStyle = rgb(f.skin);
-    g.fill();
-    g.strokeStyle = INK;
-    g.lineWidth = 6;
-    g.stroke();
-
-    // Eyes: white shapes with dark pupils that follow the gaze.
-    for (const [eye, salt] of [[EYE_LEFT, 80], [EYE_RIGHT, 120]]) {
-        curve(g, pts(eye, salt, 2), true);
-        g.fillStyle = '#f2f3f4';
-        g.fill();
-        g.strokeStyle = INK;
-        g.lineWidth = 4;
+    // Line only: the grey field shows through, and no skin tone is drawn. Each line has a dark
+    // under-stroke so it reads on any background.
+    const ink = (path, closed, width, alpha = 1) => {
+        curve(g, path, closed);
+        g.strokeStyle = 'rgba(16, 18, 20, 0.5)';
+        g.lineWidth = width + 5;
         g.stroke();
-    }
+        g.strokeStyle = alpha === 1 ? LINE : 'rgba(242, 243, 244, ' + alpha + ')';
+        g.lineWidth = width;
+        g.stroke();
+    };
+    // A mild boost so a smile and raised brows read clearly: vertical distances from the
+    // middle of the mouth, and from the eyes, are stretched a little.
+    const around = (list, anchor, gain) => list.map((p) => ({ x: p.x, y: anchor.y + (p.y - anchor.y) * gain }));
+    const centre = (list) => ({ x: list.reduce((a, p) => a + p.x, 0) / list.length, y: list.reduce((a, p) => a + p.y, 0) / list.length });
+    const eyeL = pts(EYE_LEFT, 80, 2), eyeR = pts(EYE_RIGHT, 120, 2);
+    const lipsOuter = pts(LIPS_OUTER, 160, 2), lipsInner = pts(LIPS_INNER, 200, 1.5);
+    const mouthAnchor = centre(lipsOuter);
+    ink(pts(FACE_OVAL, 0), true, 6);
+    ink(eyeL, true, 4);
+    ink(eyeR, true, 4);
+    ink(around(pts(BROW_LEFT[0], 40, 2), centre(eyeL), BROW_GAIN), false, 8);
+    ink(around(pts(BROW_RIGHT[0], 60, 2), centre(eyeR), BROW_GAIN), false, 8);
+    ink(pts(NOSE_BRIDGE, 240, 2), false, 4, 0.8);
+    ink(pts(NOSE_BASE, 260, 2), false, 4, 0.8);
+    ink(around(lipsOuter, mouthAnchor, MOUTH_GAIN), true, 4.5);
+
+    // Pupils follow the gaze.
     const eyeW = Math.hypot(T(33).x - T(133).x, T(33).y - T(133).y);
-    g.fillStyle = INK;
+    g.fillStyle = LINE;
     for (const i of [IRIS_LEFT, IRIS_RIGHT]) {
         const t = T(i);
         g.beginPath();
@@ -445,32 +428,11 @@ function drawLinePortrait(g, f, now) {
         g.fill();
     }
 
-    // Brows: thick dark strokes.
-    g.strokeStyle = INK;
-    g.lineWidth = 8;
-    for (const [brow, salt] of [[BROW_LEFT, 40], [BROW_RIGHT, 60]]) {
-        curve(g, pts(brow[0], salt, 2), false);
-        g.stroke();
-    }
-
-    // Nose, drawn lightly.
-    g.lineWidth = 4;
-    g.strokeStyle = 'rgba(22, 24, 27, 0.75)';
-    curve(g, pts(NOSE_BRIDGE, 240, 2), false);
-    g.stroke();
-    curve(g, pts(NOSE_BASE, 260, 2), false);
-    g.stroke();
-
-    // Mouth: a darker lip tone, and the open mouth as a dark shape so a smile or a word shows.
-    curve(g, pts(LIPS_OUTER, 160, 2), true);
-    g.fillStyle = rgb(f.skin, 0.62);
+    // The open mouth as a dark shape, so a smile or a spoken word shows.
+    curve(g, around(lipsInner, mouthAnchor, MOUTH_GAIN), true);
+    g.fillStyle = 'rgba(16, 18, 20, 0.6)';
     g.fill();
-    g.strokeStyle = INK;
-    g.lineWidth = 4.5;
-    g.stroke();
-    curve(g, pts(LIPS_INNER, 200, 1.5), true);
-    g.fillStyle = '#2a1414';
-    g.fill();
+    g.strokeStyle = LINE;
     g.lineWidth = 3;
     g.stroke();
 
