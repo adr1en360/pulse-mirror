@@ -212,7 +212,33 @@ body[data-state="locked"] .beat { opacity: 1; }
 .key:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
 .consent .key { margin-top: 12px; }
 
-/* The captured clip, looping in place for review. It carries its own caption and doodle. */
+/* Name field (review) and clip length control (before capture). */
+.field { display: flex; align-items: center; gap: 10px; flex: none; }
+.field[hidden] { display: none; }
+.field span, .length span {
+  font: 800 16px/1 "Big Shoulders Display", sans-serif;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.field input {
+  width: 190px;
+  padding: 8px 12px;
+  border: 2px solid var(--ink);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--ink);
+  font: 500 16px/1.2 "Geist", sans-serif;
+}
+.field input::placeholder { color: var(--ink-dim); }
+.field input:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.length { display: flex; align-items: center; gap: 8px; margin-right: 6px; }
+.length[hidden] { display: none; }
+body[data-state="consent"] .length { display: none; }
+.length b { font: 800 22px/1 "Big Shoulders Display", sans-serif; min-width: 2.4ch; text-align: center; font-variant-numeric: tabular-nums; }
+.key.small { padding: 6px 12px; }
+
+/* The captured clip, replayed live in place for review. It carries its own caption and doodle. */
 .clip {
   position: absolute;
   inset: 0;

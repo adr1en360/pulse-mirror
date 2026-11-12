@@ -130,13 +130,14 @@ function realRun(win) {
 function reviewRun(win, demo) {
     const dir = path.join(__dirname, '.impeccable', 'review');
     fs.mkdirSync(dir, { recursive: true });
-    const shots = demo ? [11, 14, 17, 21, 24, 27, 30] : [1, 10, 25, 40, 55, 70, 90];
+    const shots = demo ? [11, 14, 17, 21, 24, 28, 36] : [1, 10, 25, 40, 55, 70, 90];
     win.webContents.once('did-finish-load', () => {
         setTimeout(() => win.webContents.executeJavaScript('document.getElementById("start").click()'), 3000);
         if (demo) {
             setTimeout(() => win.webContents.executeJavaScript('document.getElementById("capture").click()'), 12000);
+            setTimeout(() => win.webContents.executeJavaScript('document.getElementById("name").value = "Ada"'), 21000);
             setTimeout(() => win.webContents.executeJavaScript('document.getElementById("saveimage").click()'), 23000);
-            setTimeout(() => win.webContents.executeJavaScript('document.getElementById("save").click()'), 26000);
+            setTimeout(() => win.webContents.executeJavaScript('document.getElementById("save").click()'), 25000);
         }
         shots.forEach((s, i) => setTimeout(async () => {
             const image = await win.webContents.capturePage();

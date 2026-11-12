@@ -16,6 +16,7 @@ const els = {
     numeral: $('numeral'), bpm: $('bpm'), status: $('status'),
     start: $('start'), stop: $('stop'), calm: $('calm'),
     capture: $('capture'), save: $('save'), saveImage: $('saveimage'), discard: $('discard'), clip: $('clip'), badge: $('badge'),
+    name: $('name'), nameField: $('namefield'), lengthField: $('lengthfield'), lenMinus: $('lenminus'), lenPlus: $('lenplus'), lenVal: $('lenval'),
 };
 
 // A pulse counts as found at this confidence or higher (and marked stable).
@@ -39,25 +40,13 @@ let hintAt = 0;
 let retries = 0;
 let reconnecting = false;
 
-// Capture: six seconds of the composed mirror, kept in memory until the user saves or discards it.
-const CLIP_SECONDS = 6;
+// Capture state. Drawing data is stored while recording; see the share clip section below.
 const CLIP_W = 1280, CLIP_H = 720;
 const clipCanvas = document.createElement('canvas');
 clipCanvas.width = CLIP_W;
 clipCanvas.height = CLIP_H;
-let recording = false;
 let clipMode = '';   // '', 'recording' or 'review'
-let clipBlob = null;
-let clipExt = 'webm';
-let clipUrl = null;
-// The still image: the frame at the strongest heartbeat of the capture.
-const stillCanvas = document.createElement('canvas');
-stillCanvas.width = CLIP_W;
-stillCanvas.height = CLIP_H;
-let stillBlob = null;
-let bestBeat = -1;
 let swellScale = 1;
-let overlayIsMesh = false;   // the overlay is showing search dots, which must never reach a clip
 let beatMin = 1, beatMax = 0;
 
 // Live signal buffers. The pulse waveform drives the throb; the chest trace drives the swell.
@@ -217,7 +206,6 @@ function paintOverlay() {
     els.mirror.style.setProperty('--swell', String(swellScale));
     els.tint.style.setProperty('--swell', String(1 + swellAmount * swell));
 
-    overlayIsMesh = state === 'finding' || state === 'lost';
     if (!points || state === 'consent') return;
     const vw = els.preview.videoWidth || 1280, vh = els.preview.videoHeight || 720;
     const px = (p) => ({ x: (landmarksNormalized ? p.x : p.x / vw) * w, y: (landmarksNormalized ? p.y : p.y / vh) * h });
@@ -251,7 +239,25 @@ function paintOverlay() {
     g.restore();
 }
 
-// The share clip: the mirror, a scratched-in heart that beats with the live pulse, and a caption.
+// ---- The share clip ---------------------------------------------------------------------
+// The portrait, heart and caption are drawn from recorded frames of data (face points, beat,
+// breath, BPM, skin tone), never from video. A capture stores that data; the review screen
+// replays it live, so a name typed afterwards shows at once; saving renders it into an mp4
+// or a png with the name in it.
+
+const FRAME_MS = 1000 / 30;
+const LENGTHS = [3, 5, 6, 8, 10, 15, 20, 30];
+let lengthIndex = 2;                  // 6 seconds
+let clipSeconds = LENGTHS[lengthIndex];
+let frames = [];
+let capturing = false;
+let lastPush = 0;
+let captureStart = 0;
+let replayStart = 0;
+let encoding = false;
+const clipCtx = clipCanvas.getContext('2d');
+const replayCtx = els.clip.getContext('2d');
+
 function heartPoint(a, size) {
     return {
         x: 16 * Math.pow(Math.sin(a), 3) * size / 17,
@@ -377,25 +383,31 @@ function drawClipBackdrop(g, W, H) {
     for (const r of [300, 340]) { g.beginPath(); g.arc(W / 2, H / 2, r, 0, Math.PI * 2); g.stroke(); }
 }
 
-// Traces the live face landmarks as a hand-drawn portrait. The person's own smile, blinks,
-// mouth, brows and gaze move it; there is no video of them in the picture.
-function drawLinePortrait(g, now) {
-    if (!points) return;
+// One frame of clip data: the face points in video pixels plus the live signals at that moment.
+function snapshotFrame(now) {
+    if (!points) return null;
     const vw = els.preview.videoWidth || 1280, vh = els.preview.videoHeight || 720;
-    const P = (i) => {
-        const p = points[i];
-        return { x: landmarksNormalized ? p.x * vw : p.x, y: landmarksNormalized ? p.y * vh : p.y };
-    };
-    sampleSkin(P, vw, vh, now);
+    const pts = new Float32Array(points.length * 2);
+    for (let i = 0; i < points.length; i++) {
+        pts[2 * i] = landmarksNormalized ? points[i].x * vw : points[i].x;
+        pts[2 * i + 1] = landmarksNormalized ? points[i].y * vh : points[i].y;
+    }
+    sampleSkin((i) => ({ x: pts[2 * i], y: pts[2 * i + 1] }), vw, vh, now);
+    return { pts, vw, vh, beat, swell, bpm: bpmShown, calm: document.body.classList.contains('calm'), skin: { r: skin.r, g: skin.g, b: skin.b } };
+}
+
+// Traces the face points as a hand-drawn portrait. The person's own smile, blinks, mouth,
+// brows and gaze move it; there is no video of them in the picture.
+function drawLinePortrait(g, f, now) {
+    const P = (i) => ({ x: f.pts[2 * i], y: f.pts[2 * i + 1] });
     const a = P(234), b = P(454);
     const faceW = Math.hypot(a.x - b.x, a.y - b.y) || 1;
     let cx = 0, cy = 0;
     for (const i of FACE_OVAL) { const p = P(i); cx += p.x; cy += p.y; }
     cx /= FACE_OVAL.length;
     cy /= FACE_OVAL.length;
-    const calm = document.body.classList.contains('calm');
     portraitScale = portraitScale ? portraitScale * 0.9 + (370 / faceW) * 0.1 : 370 / faceW;
-    const k = portraitScale * (1 + (calm ? 0.01 : 0.03) * swell);   // the drawing breathes
+    const k = portraitScale * (1 + (f.calm ? 0.01 : 0.03) * f.swell);   // the drawing breathes
     const ox = 600, oy = 300;
     // Mirrored, like the live mirror; centred and scaled so head movement shows as tilt and turn.
     const T = (i) => { const p = P(i); return { x: ox - (p.x - cx) * k, y: oy + (p.y - cy) * k }; };
@@ -408,9 +420,8 @@ function drawLinePortrait(g, now) {
     g.lineJoin = 'round';
 
     // Skin: a flat fill in the person's own tone, with a darker hand-drawn outline.
-    const face = pts(FACE_OVAL, 0);
-    curve(g, face, true);
-    g.fillStyle = rgb(skin);
+    curve(g, pts(FACE_OVAL, 0), true);
+    g.fillStyle = rgb(f.skin);
     g.fill();
     g.strokeStyle = INK;
     g.lineWidth = 6;
@@ -418,8 +429,7 @@ function drawLinePortrait(g, now) {
 
     // Eyes: white shapes with dark pupils that follow the gaze.
     for (const [eye, salt] of [[EYE_LEFT, 80], [EYE_RIGHT, 120]]) {
-        const e = pts(eye, salt, 2);
-        curve(g, e, true);
+        curve(g, pts(eye, salt, 2), true);
         g.fillStyle = '#f2f3f4';
         g.fill();
         g.strokeStyle = INK;
@@ -453,7 +463,7 @@ function drawLinePortrait(g, now) {
 
     // Mouth: a darker lip tone, and the open mouth as a dark shape so a smile or a word shows.
     curve(g, pts(LIPS_OUTER, 160, 2), true);
-    g.fillStyle = rgb(skin, 0.62);
+    g.fillStyle = rgb(f.skin, 0.62);
     g.fill();
     g.strokeStyle = INK;
     g.lineWidth = 4.5;
@@ -473,8 +483,8 @@ function drawLinePortrait(g, now) {
         for (const i of idx) { const t = T(i); mx += t.x; my += t.y; }
         mx /= idx.length;
         my /= idx.length;
-        const n = Math.round(3 + 6 * beat);
-        g.globalAlpha = 0.25 + 0.75 * beat;
+        const n = Math.round(3 + 6 * f.beat);
+        g.globalAlpha = 0.25 + 0.75 * f.beat;
         for (let j = 0; j < n; j++) {
             const x0 = mx - r + (j * 2 * r) / Math.max(1, n - 1);
             g.beginPath();
@@ -487,11 +497,11 @@ function drawLinePortrait(g, now) {
     g.restore();
 }
 
-function composeClip() {
-    const g = clipCanvas.getContext('2d');
-    const W = CLIP_W, H = CLIP_H, now = performance.now();
+// A whole clip frame: backdrop, portrait, corner marks, beating heart, caption with the name.
+function drawFrame(g, f, name, now) {
+    const W = CLIP_W, H = CLIP_H;
     drawClipBackdrop(g, W, H);
-    drawLinePortrait(g, now);
+    drawLinePortrait(g, f, now);
 
     // Registration ticks in the corners, from the film leader.
     g.strokeStyle = 'rgba(242, 243, 244, 0.85)';
@@ -503,30 +513,52 @@ function composeClip() {
         g.stroke();
     }
 
-    drawDoodleHeart(g, W - 150, H - 190, 92, beat, now);
+    drawDoodleHeart(g, W - 150, H - 190, 92, f.beat, now);
 
-    // Caption plate.
+    // Caption plate: the beat count, then the name, date and product.
     const date = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).toUpperCase();
+    const line2 = (name ? name.toUpperCase() + '  ·  ' : '') + date + '  ·  PULSE MIRROR';
     g.fillStyle = 'rgba(16, 18, 20, 0.78)';
-    g.fillRect(40, H - 40 - 96, 640, 96);
+    g.fillRect(40, H - 40 - 96, 700, 96);
     g.fillStyle = '#f2f3f4';
     g.textBaseline = 'alphabetic';
     g.font = '800 46px "Big Shoulders Display", sans-serif';
-    g.fillText('ABOUT ' + (bpmShown === null ? '--' : Math.round(bpmShown)) + ' BEATS A MINUTE', 62, H - 40 - 48);
+    g.fillText('ABOUT ' + (f.bpm === null ? '--' : Math.round(f.bpm)) + ' BEATS A MINUTE', 62, H - 40 - 48);
     g.fillStyle = '#d4d8dc';
     g.font = '500 20px "Geist", sans-serif';
-    g.fillText(date + '  ·  PULSE MIRROR', 62, H - 40 - 18);
+    g.fillText(line2, 62, H - 40 - 18);
+}
 
-    if (recording && beat >= bestBeat) {
-        bestBeat = beat;
-        stillCanvas.getContext('2d').drawImage(clipCanvas, 0, 0);
+function nameValue() {
+    return els.name.value.trim().slice(0, 24);
+}
+
+// Frames carry real timestamps, so a clip lasts exactly as long as it was recorded,
+// whatever rate the screen happened to draw at.
+function clipDuration() {
+    return Math.max(1, frames[frames.length - 1].t + FRAME_MS);
+}
+
+function frameAt(ms) {
+    let lo = 0, hi = frames.length - 1;
+    while (lo < hi) {
+        const mid = (lo + hi + 1) >> 1;
+        if (frames[mid].t <= ms) lo = mid; else hi = mid - 1;
     }
+    return frames[lo];
 }
 
 function draw() {
     requestAnimationFrame(draw);
     paintOverlay();
-    if (recording) composeClip();
+    const now = performance.now();
+    if (capturing && now - lastPush >= FRAME_MS - 1) {
+        const f = snapshotFrame(now);
+        if (f) { f.t = now - captureStart; frames.push(f); lastPush = now; }
+    }
+    if (clipMode === 'review' && frames.length && !encoding) {
+        drawFrame(replayCtx, frameAt((now - replayStart) % clipDuration()), nameValue(), now);
+    }
 }
 
 function pickClipType() {
@@ -537,90 +569,129 @@ function pickClipType() {
 function setClipMode(mode) {
     clipMode = mode;
     document.body.dataset.clip = mode;
-    els.save.hidden = mode !== 'review';
-    els.saveImage.hidden = mode !== 'review';
-    els.discard.hidden = mode !== 'review';
-    els.clip.hidden = mode !== 'review';
-    els.capture.hidden = mode === 'review';
+    const review = mode === 'review';
+    els.save.hidden = !review;
+    els.saveImage.hidden = !review;
+    els.discard.hidden = !review;
+    els.clip.hidden = !review;
+    els.nameField.hidden = !review;
+    els.capture.hidden = review;
+    els.lengthField.hidden = review;
+    els.lenMinus.disabled = els.lenPlus.disabled = mode === 'recording';
+}
+
+function setLength(index) {
+    lengthIndex = Math.min(LENGTHS.length - 1, Math.max(0, index));
+    clipSeconds = LENGTHS[lengthIndex];
+    els.lenVal.textContent = clipSeconds + ' s';
+    els.capture.textContent = 'Capture ' + clipSeconds + ' seconds';
 }
 
 async function capture() {
     if (state !== 'locked' || clipMode) return;
-    const type = pickClipType();
-    if (!type) { setStatus('This computer cannot record video here.', true); return; }
-    clipExt = type.startsWith('video/mp4') ? 'mp4' : 'webm';
-    console.log('[pm] recording as ' + type);
+    frames = [];
+    lastPush = 0;
+    captureStart = performance.now();
+    capturing = true;
     setClipMode('recording');
-    const recorder = new MediaRecorder(clipCanvas.captureStream(30), { mimeType: type, videoBitsPerSecond: 6000000 });
-    const chunks = [];
-    recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
-    const stopped = new Promise((resolve) => { recorder.onstop = resolve; });
-    bestBeat = -1;
-    stillBlob = null;
     const began = performance.now();
     let cancelled = false;
     let lostMs = 0;
-    recording = true;
-    composeClip();
-    recorder.start(250);
-    const counter = setInterval(() => {
-        const left = Math.max(0, CLIP_SECONDS - Math.floor((performance.now() - began) / 1000));
-        els.badge.textContent = 'Recording ' + left;
-        setStatus('Recording ' + CLIP_SECONDS + ' seconds. Hold still.');
-        lostMs = state === 'locked' ? 0 : lostMs + 200;
-        if (lostMs > 1500 && !cancelled) { cancelled = true; recorder.stop(); }
-    }, 200);
-    setTimeout(() => recorder.stop(), CLIP_SECONDS * 1000);
-    await stopped;
-    clearInterval(counter);
-    recording = false;
+    await new Promise((resolve) => {
+        const counter = setInterval(() => {
+            const elapsed = (performance.now() - began) / 1000;
+            els.badge.textContent = 'Recording ' + Math.max(0, Math.ceil(clipSeconds - elapsed));
+            setStatus('Recording ' + clipSeconds + ' seconds. Hold still.');
+            lostMs = state === 'locked' ? 0 : lostMs + 200;
+            if (lostMs > 1500) cancelled = true;
+            if (cancelled || elapsed >= clipSeconds) { clearInterval(counter); resolve(); }
+        }, 200);
+    });
+    capturing = false;
     els.badge.textContent = 'Camera on';
-    if (cancelled) {
+    if (cancelled || frames.length < 10) {
+        frames = [];
         setClipMode('');
         setStatus('Lost your pulse during the capture, so nothing was kept. Hold still and try again.', true);
         return;
     }
-    stillBlob = await new Promise((resolve) => stillCanvas.toBlob(resolve, 'image/png'));
-    clipBlob = new Blob(chunks, { type });
-    clipUrl = URL.createObjectURL(clipBlob);
-    els.clip.src = clipUrl;
+    portraitScale = 0;
+    replayStart = performance.now();
     setClipMode('review');
-    els.clip.play().catch(() => {});
-    setStatus('Your clip is ready. Save the clip or an image of it, or discard it.');
+    setStatus('Clip ready. Add your name, then save.');
 }
 
 function dropClip() {
-    if (clipUrl) URL.revokeObjectURL(clipUrl);
-    clipUrl = null;
-    clipBlob = null;
-    stillBlob = null;
-    els.clip.removeAttribute('src');
-    els.clip.load();
+    frames = [];
+    encoding = false;
+    els.name.value = '';
     setClipMode('');
 }
 
+function setBusy(on) {
+    for (const b of [els.save, els.saveImage, els.discard]) b.disabled = on;
+}
+
 async function saveClip() {
-    if (!clipBlob) return;
+    if (!frames.length || encoding) return;
+    const type = pickClipType();
+    if (!type) { setStatus('This computer cannot save video here.', true); return; }
+    encoding = true;
+    setBusy(true);
+    setStatus('Preparing your clip, about ' + clipSeconds + ' seconds.');
     try {
-        const bytes = new Uint8Array(await clipBlob.arrayBuffer());
-        const result = await window.pulseMirror.saveClip(bytes, clipExt);
+        const recorder = new MediaRecorder(clipCanvas.captureStream(30), { mimeType: type, videoBitsPerSecond: 6000000 });
+        const chunks = [];
+        recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+        const stopped = new Promise((resolve) => { recorder.onstop = resolve; });
+        const name = nameValue();
+        const total = clipDuration();
+        const began = performance.now();
+        portraitScale = 0;
+        recorder.start(250);
+        await new Promise((resolve) => {
+            const step = () => {
+                const e = performance.now() - began;
+                if (e >= total) return resolve();
+                drawFrame(clipCtx, frameAt(e), name, performance.now());
+                requestAnimationFrame(step);
+            };
+            step();
+        });
+        recorder.stop();
+        await stopped;
+        const blob = new Blob(chunks, { type });
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        const result = await window.pulseMirror.saveClip(bytes, type.startsWith('video/mp4') ? 'mp4' : 'webm');
         if (result && result.saved) {
-            const name = String(result.path).split(/[\\/]/).pop();
+            const file = String(result.path).split(/[\\/]/).pop();
             dropClip();
-            setStatus('Saved ' + name + '.');
+            setStatus('Saved ' + file + '.');
+            return;
         }
+        setStatus('Not saved. You can try again.');
     } catch (err) {
         console.error('[pm] save failed', err);
         setStatus('Could not save the clip. Try again.', true);
     }
+    encoding = false;
+    portraitScale = 0;
+    setBusy(false);
 }
 
 async function saveImage() {
-    if (!stillBlob) return;
+    if (!frames.length || encoding) return;
     try {
-        const bytes = new Uint8Array(await stillBlob.arrayBuffer());
+        // The still is the frame at the strongest heartbeat.
+        let best = 0;
+        for (let i = 1; i < frames.length; i++) if (frames[i].beat > frames[best].beat) best = i;
+        portraitScale = 0;
+        drawFrame(clipCtx, frames[best], nameValue(), performance.now());
+        portraitScale = 0;
+        const blob = await new Promise((resolve) => clipCanvas.toBlob(resolve, 'image/png'));
+        const bytes = new Uint8Array(await blob.arrayBuffer());
         const result = await window.pulseMirror.saveClip(bytes, 'png');
-        if (result && result.saved) setStatus('Saved ' + String(result.path).split(/[\\/]/).pop() + '. You can still save the clip or discard it.');
+        if (result && result.saved) setStatus('Saved ' + String(result.path).split(/[\\/]/).pop() + '.');
     } catch (err) {
         console.error('[pm] save image failed', err);
         setStatus('Could not save the image. Try again.', true);
@@ -628,8 +699,15 @@ async function saveImage() {
 }
 
 function discardClip() {
+    if (encoding) return;
     dropClip();
     setStatus('Clip discarded.');
+}
+
+// A composed frame of the live face, used only by development test modes.
+function composeClip() {
+    const f = snapshotFrame(performance.now());
+    if (f) drawFrame(clipCtx, f, '', performance.now());
 }
 
 function buildSdk() {
@@ -713,7 +791,7 @@ async function start() {
 }
 
 async function release() {
-    recording = false;
+    capturing = false;
     dropClip();
     if (sdk) {
         try { await sdk.stop(); } catch (err) { console.error('[pm] stop failed', err); }
@@ -746,6 +824,10 @@ els.capture.addEventListener('click', capture);
 els.save.addEventListener('click', saveClip);
 els.saveImage.addEventListener('click', saveImage);
 els.discard.addEventListener('click', discardClip);
+els.lenMinus.addEventListener('click', () => setLength(lengthIndex - 1));
+els.lenPlus.addEventListener('click', () => setLength(lengthIndex + 1));
+els.name.addEventListener('keydown', (e) => { if (e.key === 'Enter') els.name.blur(); });
+setLength(lengthIndex);
 els.start.addEventListener('click', start);
 els.stop.addEventListener('click', stop);
 els.calm.addEventListener('click', () => {
@@ -755,8 +837,9 @@ els.calm.addEventListener('click', () => {
 });
 window.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
+    if (document.activeElement === els.name) { els.name.blur(); return; }
     if (clipMode === 'review') discardClip();
-    else if (state !== 'consent' && !recording) stop();
+    else if (state !== 'consent' && !capturing) stop();
 });
 setInterval(tick, 250);
 requestAnimationFrame(draw);

@@ -35,7 +35,7 @@
       <button class="key primary" id="start" type="button">Start camera</button>
     </section>
 
-    <video class="clip" id="clip" loop muted playsinline hidden></video>
+    <canvas class="clip" id="clip" width="1280" height="720" hidden></canvas>
 
     <div class="badge" id="badge">Camera on</div>
     <div class="beat" id="beat" aria-live="off"><span>about</span><b id="bpm">--</b><span>beats a minute</span></div>
@@ -43,8 +43,10 @@
 </main>
 
 <footer class="strip">
+  <label class="field" id="namefield" hidden><span>Your name</span><input id="name" type="text" maxlength="24" autocomplete="off" placeholder="Add your name"></label>
   <p class="status" id="status" role="status" aria-live="polite"></p>
   <div class="keys">
+    <div class="length" id="lengthfield"><span>Length</span><button class="key small" id="lenminus" type="button" aria-label="Shorter clip">&minus;</button><b id="lenval">6 s</b><button class="key small" id="lenplus" type="button" aria-label="Longer clip">+</button></div>
     <button class="key primary" id="capture" type="button" disabled>Capture 6 seconds</button>
     <button class="key primary" id="save" type="button" hidden>Save clip</button>
     <button class="key" id="saveimage" type="button" hidden>Save image</button>

@@ -14,7 +14,7 @@ It is a desktop app (Electron, Windows x64). Everything you see is drawn from th
 2. **Finding.** Your live face sits under an old film-leader countdown (crosshair, rings, a sweeping arm, an outline number counting seconds). Face dots show the app can see you while it looks for your pulse.
 3. **Locked.** Once the SDK reports a stable pulse, the leader falls away. Your whole face flushes in time with your pulse waveform, the picture swells slightly with your breathing, and a readout shows "about N beats a minute".
 4. **Lost.** If the pulse is lost for three seconds the beat fades out and the app says so plainly. It never fakes a beat.
-5. **Capture.** Capture 6 seconds records a looping clip. It is not video of you: it is a hand-drawn portrait traced live from your face points (face outline, brows, eyes and pupils, lips, nose) in your own skin tone, so your smile, blinks, open mouth and gaze move the drawing. Your cheeks hatch with each pulse, the portrait breathes, a hand-drawn heart beats beside it, and a caption reads "about N beats a minute". Review it, then Save clip (an mp4), Save image (a PNG still of the portrait at its strongest heartbeat, handy for posts), or Discard. Each opens a Save dialog and writes one file you choose. If the pulse is lost mid-recording, the capture is cancelled.
+5. **Capture.** Capture records a looping clip, 3 to 30 seconds long as you set with the Length control (6 by default). It is not video of you: it is a hand-drawn portrait traced live from your face points (face outline, brows, eyes and pupils, lips, nose) in your own skin tone, so your smile, blinks, open mouth and gaze move the drawing. Your cheeks hatch with each pulse, the portrait breathes, a hand-drawn heart beats beside it, and a caption reads "about N beats a minute". Review it, and if you like type your name, which appears in the caption. Then Save clip (an mp4), Save image (a PNG still of the portrait at its strongest heartbeat, handy for posts), or Discard. Each opens a Save dialog and writes one file you choose. If the pulse is lost mid-recording, the capture is cancelled.
 
 ## Which signals it uses
 
@@ -60,7 +60,7 @@ Notes:
 
 Sit about an arm's length from the camera, face a lamp or window, keep still and stay quiet. The first reading usually takes 20 to 60 seconds; on a slow connection it can take longer, because the pulse model downloads when you start. If the connection drops, the app reconnects by itself.
 
-Keys: **Start camera**, **Capture 6 seconds**, **Save clip** / **Save image** / **Discard**, **Calm motion** (a gentler throb and no sweeping arm), **Stop**. Escape stops the camera, or discards a clip under review.
+Keys: **Start camera**, **Length** (minus and plus, 3 to 30 seconds), **Capture**, **Save clip** / **Save image** / **Discard**, **Calm motion** (a gentler throb and no sweeping arm), **Stop**. Escape stops the camera, or discards a clip under review.
 
 ## Consent and data handling
 
@@ -68,7 +68,7 @@ Keys: **Start camera**, **Capture 6 seconds**, **Save clip** / **Save image** / 
 - **Where processing happens.** Video is analysed on your computer by the SDK. Frames are not recorded or uploaded by this app.
 - **What the SDK sends.** It contacts Presage's servers to check your access key and usage, and to download its models. SDK telemetry is turned off (`enableTelemetry: false`).
 - **AI service disclosure.** According to Presage's documentation, while a session runs the SDK automatically sends short summaries of numbers derived from your pulse, heart-rate variability and breathing to Presage, which forwards them to a language model for a wellness check-in. Raw video and facial images are never sent, only those derived numbers and a fixed prompt. This app does not request those summaries, does not display them and does not store them, and the SDK offers no setting to switch this off. The app itself calls no other AI service.
-- **Storage and retention.** Nothing is stored unless you press Capture and then Save. A captured clip lives in memory until you save or discard it. It contains no photo or video of you, only a drawing traced from your face points, and one colour sampled from your skin to fill it. Saving writes one file to a location you pick. There is no account, no server and no upload. Deleting the file deletes the clip.
+- **Storage and retention.** Nothing is stored unless you press Capture and then Save. A captured clip lives in memory until you save or discard it. It contains no photo or video of you, only a drawing traced from your face points, and one colour sampled from your skin to fill it. A name you type is used only in the caption of what you save and is never stored. Saving writes one file to a location you pick. There is no account, no server and no upload. Deleting the file deletes the clip.
 - **Not a medical device.** Pulse Mirror is for curiosity. It makes no diagnosis, gives no health verdicts and must not be used for medical decisions. The SDK itself says its readings are not cleared for diagnosis or treatment.
 - **No covert use.** It only works with a visible camera indicator, on the person sitting at the computer.
 

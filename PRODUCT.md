@@ -24,7 +24,7 @@ A laptop webcam, a lamp, a still seated person. The pulse takes roughly 20 to 30
 ## Capabilities and Constraints
 - Live mirror with face mesh, throb tied to the real pulse waveform, breath swell, hints from the SDK's validation codes.
 - Locked state needs pulse confidence of at least 40 and the stable flag; below 40 for over 3 seconds it fades to a "can't find your pulse" state.
-- Capture records six seconds into a looping clip: a hand-drawn line portrait traced live from the person's face landmarks (their own expression moves it, no emotion labels), a code-drawn heart that beats at the live pulse, and a caption. The clip contains no photo or video of the person. Saved locally as mp4 (webm fallback). Nothing is uploaded.
+- Capture records a looping clip of a length the person sets (3 to 30 seconds, 6 by default): a hand-drawn line portrait traced live from the person's face landmarks (their own expression moves it, no emotion labels), a code-drawn heart that beats at the live pulse, and a caption that can carry a name the person types after recording. The clip contains no photo or video of the person. Saved locally as mp4 (webm fallback). Nothing is uploaded.
 - Wording stays at wellness curiosity: "about N beats a minute". No health verdicts, no blood pressure, no apnea, no claims that it detects people or proves anyone is live. A recorded video of a real face is read as a pulse, so liveness is never claimed.
 - Camera-on badge always visible while the camera runs. Telemetry disabled. Camera only; never the microphone.
 - Throb version A is a tint driven by the real waveform and is described as such. Real video magnification is a possible later version.
