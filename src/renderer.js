@@ -343,11 +343,15 @@ function curve(g, pts, closed) {
     }
 }
 
-// The leader field behind the portrait, quieter than on screen.
+// A deep teal field behind the portrait. It sets off the white lines and the vermilion
+// hatching and heart without competing with them (vermilion on this teal is about 4:1).
+// The leader crosshair and rings stay, quietly.
+const CLIP_BG = '#19404c';
+
 function drawClipBackdrop(g, W, H) {
-    g.fillStyle = '#666b71';
+    g.fillStyle = CLIP_BG;
     g.fillRect(0, 0, W, H);
-    g.strokeStyle = 'rgba(242, 243, 244, 0.35)';
+    g.strokeStyle = 'rgba(242, 243, 244, 0.2)';
     g.lineWidth = 2;
     g.beginPath();
     g.moveTo(0, H / 2); g.lineTo(W, H / 2);
