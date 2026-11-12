@@ -15,7 +15,7 @@ const els = {
     preview: $('preview'), frame: $('frame'), mirror: $('mirror'), tint: $('tint'),
     numeral: $('numeral'), bpm: $('bpm'), status: $('status'),
     start: $('start'), stop: $('stop'), calm: $('calm'),
-    capture: $('capture'), save: $('save'), discard: $('discard'), clip: $('clip'), badge: $('badge'),
+    capture: $('capture'), save: $('save'), saveImage: $('saveimage'), discard: $('discard'), clip: $('clip'), badge: $('badge'),
 };
 
 // A pulse counts as found at this confidence or higher (and marked stable).
@@ -50,6 +50,12 @@ let clipMode = '';   // '', 'recording' or 'review'
 let clipBlob = null;
 let clipExt = 'webm';
 let clipUrl = null;
+// The still image: the frame at the strongest heartbeat of the capture.
+const stillCanvas = document.createElement('canvas');
+stillCanvas.width = CLIP_W;
+stillCanvas.height = CLIP_H;
+let stillBlob = null;
+let bestBeat = -1;
 let swellScale = 1;
 let overlayIsMesh = false;   // the overlay is showing search dots, which must never reach a clip
 let beatMin = 1, beatMax = 0;
@@ -510,6 +516,11 @@ function composeClip() {
     g.fillStyle = '#d4d8dc';
     g.font = '500 20px "Geist", sans-serif';
     g.fillText(date + '  ·  PULSE MIRROR', 62, H - 40 - 18);
+
+    if (recording && beat >= bestBeat) {
+        bestBeat = beat;
+        stillCanvas.getContext('2d').drawImage(clipCanvas, 0, 0);
+    }
 }
 
 function draw() {
@@ -527,6 +538,7 @@ function setClipMode(mode) {
     clipMode = mode;
     document.body.dataset.clip = mode;
     els.save.hidden = mode !== 'review';
+    els.saveImage.hidden = mode !== 'review';
     els.discard.hidden = mode !== 'review';
     els.clip.hidden = mode !== 'review';
     els.capture.hidden = mode === 'review';
@@ -543,6 +555,8 @@ async function capture() {
     const chunks = [];
     recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
     const stopped = new Promise((resolve) => { recorder.onstop = resolve; });
+    bestBeat = -1;
+    stillBlob = null;
     const began = performance.now();
     let cancelled = false;
     let lostMs = 0;
@@ -566,18 +580,20 @@ async function capture() {
         setStatus('Lost your pulse during the capture, so nothing was kept. Hold still and try again.', true);
         return;
     }
+    stillBlob = await new Promise((resolve) => stillCanvas.toBlob(resolve, 'image/png'));
     clipBlob = new Blob(chunks, { type });
     clipUrl = URL.createObjectURL(clipBlob);
     els.clip.src = clipUrl;
     setClipMode('review');
     els.clip.play().catch(() => {});
-    setStatus('Your clip is ready. Save it or discard it.');
+    setStatus('Your clip is ready. Save the clip or an image of it, or discard it.');
 }
 
 function dropClip() {
     if (clipUrl) URL.revokeObjectURL(clipUrl);
     clipUrl = null;
     clipBlob = null;
+    stillBlob = null;
     els.clip.removeAttribute('src');
     els.clip.load();
     setClipMode('');
@@ -596,6 +612,18 @@ async function saveClip() {
     } catch (err) {
         console.error('[pm] save failed', err);
         setStatus('Could not save the clip. Try again.', true);
+    }
+}
+
+async function saveImage() {
+    if (!stillBlob) return;
+    try {
+        const bytes = new Uint8Array(await stillBlob.arrayBuffer());
+        const result = await window.pulseMirror.saveClip(bytes, 'png');
+        if (result && result.saved) setStatus('Saved ' + String(result.path).split(/[\\/]/).pop() + '. You can still save the clip or discard it.');
+    } catch (err) {
+        console.error('[pm] save image failed', err);
+        setStatus('Could not save the image. Try again.', true);
     }
 }
 
@@ -716,6 +744,7 @@ window.pmShutdown = release;
 
 els.capture.addEventListener('click', capture);
 els.save.addEventListener('click', saveClip);
+els.saveImage.addEventListener('click', saveImage);
 els.discard.addEventListener('click', discardClip);
 els.start.addEventListener('click', start);
 els.stop.addEventListener('click', stop);

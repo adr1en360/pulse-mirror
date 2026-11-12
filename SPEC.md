@@ -3,6 +3,7 @@
 Status: FROZEN on 11 Nov 2026. Changes need the owner's explicit OK.
 
 Change log:
+- 12 Nov 2026, owner's request: the review screen also offers Save image, a PNG still of the portrait at the strongest heartbeat of the capture, alongside Save clip.
 - 12 Nov 2026, owner's request: the share clip no longer contains the person's video. It shows a hand-drawn, animated line portrait traced live from the face landmarks (so the person's own smile, blinks, mouth and eyebrows move it), with the beating heart doodle and the BPM caption. The SDK's emotion labels are not used (they failed testing).
 
 ## One line

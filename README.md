@@ -14,7 +14,7 @@ It is a desktop app (Electron, Windows x64). Everything you see is drawn from th
 2. **Finding.** Your live face sits under an old film-leader countdown (crosshair, rings, a sweeping arm, an outline number counting seconds). Face dots show the app can see you while it looks for your pulse.
 3. **Locked.** Once the SDK reports a stable pulse, the leader falls away. Your whole face flushes in time with your pulse waveform, the picture swells slightly with your breathing, and a readout shows "about N beats a minute".
 4. **Lost.** If the pulse is lost for three seconds the beat fades out and the app says so plainly. It never fakes a beat.
-5. **Capture.** Capture 6 seconds records a looping clip. It is not video of you: it is a hand-drawn portrait traced live from your face points (face outline, brows, eyes and pupils, lips, nose) in your own skin tone, so your smile, blinks, open mouth and gaze move the drawing. Your cheeks hatch with each pulse, the portrait breathes, a hand-drawn heart beats beside it, and a caption reads "about N beats a minute". Review it, then Save clip (a file you choose) or Discard. If the pulse is lost mid-recording, the capture is cancelled.
+5. **Capture.** Capture 6 seconds records a looping clip. It is not video of you: it is a hand-drawn portrait traced live from your face points (face outline, brows, eyes and pupils, lips, nose) in your own skin tone, so your smile, blinks, open mouth and gaze move the drawing. Your cheeks hatch with each pulse, the portrait breathes, a hand-drawn heart beats beside it, and a caption reads "about N beats a minute". Review it, then Save clip (an mp4), Save image (a PNG still of the portrait at its strongest heartbeat, handy for posts), or Discard. Each opens a Save dialog and writes one file you choose. If the pulse is lost mid-recording, the capture is cancelled.
 
 ## Which signals it uses
 
@@ -60,7 +60,7 @@ Notes:
 
 Sit about an arm's length from the camera, face a lamp or window, keep still and stay quiet. The first reading usually takes 20 to 60 seconds; on a slow connection it can take longer, because the pulse model downloads when you start. If the connection drops, the app reconnects by itself.
 
-Keys: **Start camera**, **Capture 6 seconds**, **Save clip** / **Discard**, **Calm motion** (a gentler throb and no sweeping arm), **Stop**. Escape stops the camera, or discards a clip under review.
+Keys: **Start camera**, **Capture 6 seconds**, **Save clip** / **Save image** / **Discard**, **Calm motion** (a gentler throb and no sweeping arm), **Stop**. Escape stops the camera, or discards a clip under review.
 
 ## Consent and data handling
 

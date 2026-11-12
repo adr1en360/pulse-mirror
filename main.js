@@ -26,7 +26,8 @@ let mainWindow = null;
 // In a review run the file goes to .impeccable/review/ instead of the dialog.
 ipcMain.handle('pm:save', async (event, bytes, ext) => {
     if (!mainWindow || event.sender !== mainWindow.webContents) return { saved: false };
-    const safeExt = ext === 'mp4' ? 'mp4' : 'webm';
+    const safeExt = ext === 'mp4' ? 'mp4' : ext === 'png' ? 'png' : 'webm';
+    const isImage = safeExt === 'png';
     const reviewDir = path.join(__dirname, '.impeccable', 'review');
     let target;
     if (process.argv.includes('--review-locked') || process.argv.includes('--review-real')) {
@@ -35,9 +36,9 @@ ipcMain.handle('pm:save', async (event, bytes, ext) => {
     } else {
         const stamp = new Date().toISOString().slice(0, 10);
         const result = await dialog.showSaveDialog(mainWindow, {
-            title: 'Save your clip',
+            title: isImage ? 'Save your image' : 'Save your clip',
             defaultPath: 'pulse-mirror-' + stamp + '.' + safeExt,
-            filters: [{ name: 'Video', extensions: [safeExt] }],
+            filters: [{ name: isImage ? 'Image' : 'Video', extensions: [safeExt] }],
         });
         if (result.canceled || !result.filePath) return { saved: false };
         target = result.filePath;
@@ -129,12 +130,13 @@ function realRun(win) {
 function reviewRun(win, demo) {
     const dir = path.join(__dirname, '.impeccable', 'review');
     fs.mkdirSync(dir, { recursive: true });
-    const shots = demo ? [11, 14, 17, 20, 22, 25, 28] : [1, 10, 25, 40, 55, 70, 90];
+    const shots = demo ? [11, 14, 17, 21, 24, 27, 30] : [1, 10, 25, 40, 55, 70, 90];
     win.webContents.once('did-finish-load', () => {
         setTimeout(() => win.webContents.executeJavaScript('document.getElementById("start").click()'), 3000);
         if (demo) {
             setTimeout(() => win.webContents.executeJavaScript('document.getElementById("capture").click()'), 12000);
-            setTimeout(() => win.webContents.executeJavaScript('document.getElementById("save").click()'), 21000);
+            setTimeout(() => win.webContents.executeJavaScript('document.getElementById("saveimage").click()'), 23000);
+            setTimeout(() => win.webContents.executeJavaScript('document.getElementById("save").click()'), 26000);
         }
         shots.forEach((s, i) => setTimeout(async () => {
             const image = await win.webContents.capturePage();
