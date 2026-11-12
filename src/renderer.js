@@ -51,6 +51,8 @@ let clipBlob = null;
 let clipExt = 'webm';
 let clipUrl = null;
 let swellScale = 1;
+let overlayIsMesh = false;   // the overlay is showing search dots, which must never reach a clip
+let beatMin = 1, beatMax = 0;
 
 // Live signal buffers. The pulse waveform drives the throb; the chest trace drives the swell.
 const pulseWave = [];
@@ -116,7 +118,11 @@ function logReadings(pulse, breath) {
         stable: pulse ? pulse.stable : null,
         breath: breath ? Math.round(breath.value) : null,
         landmarks: points ? points.length : 0,
+        beatRange: [Math.round(beatMin * 100) / 100, Math.round(beatMax * 100) / 100],
+        waveSamples: pulseWave.length,
     }));
+    beatMin = 1;
+    beatMax = 0;
 }
 
 function onMetrics(buf) {
@@ -192,13 +198,17 @@ function paintOverlay() {
 
     const calm = document.body.classList.contains('calm');
     if (DEV_SYNTHETIC) targetBeat = (Math.sin(performance.now() / 1000 * Math.PI * 2 * 1.3) + 1) / 2;
-    beat += (targetBeat - beat) * 0.55;
+    const shaped = Math.min(1, Math.max(0, (targetBeat - 0.3) / 0.55));
+    beat += (shaped - beat) * 0.55;
+    if (beat < beatMin) beatMin = beat;
+    if (beat > beatMax) beatMax = beat;
     swell += (targetSwell - swell) * 0.08;
     const swellAmount = state === 'locked' ? (calm ? 0.004 : 0.012) : 0;
     swellScale = 1 + swellAmount * swell;
     els.mirror.style.setProperty('--swell', String(swellScale));
     els.tint.style.setProperty('--swell', String(1 + swellAmount * swell));
 
+    overlayIsMesh = state === 'finding' || state === 'lost';
     if (!points || state === 'consent') return;
     const vw = els.preview.videoWidth || 1280, vh = els.preview.videoHeight || 720;
     const px = (p) => ({ x: (landmarksNormalized ? p.x : p.x / vw) * w, y: (landmarksNormalized ? p.y : p.y / vh) * h });
@@ -291,7 +301,7 @@ function composeClip() {
     g.translate(W / 2, H / 2);
     g.scale(-swellScale, swellScale);          // the mirror view is flipped, so the clip is too
     g.drawImage(els.preview, -W / 2, -H / 2, W, H);
-    if (els.tint.width > 0 && els.tint.height > 0) g.drawImage(els.tint, -W / 2, -H / 2, W, H);
+    if (!overlayIsMesh && els.tint.width > 0 && els.tint.height > 0) g.drawImage(els.tint, -W / 2, -H / 2, W, H);
     g.restore();
 
     // Registration ticks in the corners, from the film leader.
@@ -351,6 +361,8 @@ async function capture() {
     recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
     const stopped = new Promise((resolve) => { recorder.onstop = resolve; });
     const began = performance.now();
+    let cancelled = false;
+    let lostMs = 0;
     recording = true;
     composeClip();
     recorder.start(250);
@@ -358,18 +370,25 @@ async function capture() {
         const left = Math.max(0, CLIP_SECONDS - Math.floor((performance.now() - began) / 1000));
         els.badge.textContent = 'Recording ' + left;
         setStatus('Recording ' + CLIP_SECONDS + ' seconds. Hold still.');
+        lostMs = state === 'locked' ? 0 : lostMs + 200;
+        if (lostMs > 1500 && !cancelled) { cancelled = true; recorder.stop(); }
     }, 200);
     setTimeout(() => recorder.stop(), CLIP_SECONDS * 1000);
     await stopped;
     clearInterval(counter);
     recording = false;
     els.badge.textContent = 'Camera on';
+    if (cancelled) {
+        setClipMode('');
+        setStatus('Lost your pulse during the capture, so nothing was kept. Hold still and try again.', true);
+        return;
+    }
     clipBlob = new Blob(chunks, { type });
     clipUrl = URL.createObjectURL(clipBlob);
     els.clip.src = clipUrl;
     setClipMode('review');
     els.clip.play().catch(() => {});
-    setStatus('Your clip is ready. Save it or discard it. Nothing leaves this computer unless you save it.');
+    setStatus('Your clip is ready. Save it or discard it.');
 }
 
 function dropClip() {
