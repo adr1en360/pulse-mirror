@@ -343,21 +343,14 @@ function curve(g, pts, closed) {
     }
 }
 
-// A deep teal field behind the portrait. It sets off the white lines and the vermilion
+// A flat deep teal field behind the portrait. It sets off the white lines and the vermilion
 // hatching and heart without competing with them (vermilion on this teal is about 4:1).
-// The leader crosshair and rings stay, quietly.
+// Nothing viewfinder-like is drawn: no crosshair, rings or corner marks.
 const CLIP_BG = '#19404c';
 
 function drawClipBackdrop(g, W, H) {
     g.fillStyle = CLIP_BG;
     g.fillRect(0, 0, W, H);
-    g.strokeStyle = 'rgba(242, 243, 244, 0.2)';
-    g.lineWidth = 2;
-    g.beginPath();
-    g.moveTo(0, H / 2); g.lineTo(W, H / 2);
-    g.moveTo(W / 2, 0); g.lineTo(W / 2, H);
-    g.stroke();
-    for (const r of [300, 340]) { g.beginPath(); g.arc(W / 2, H / 2, r, 0, Math.PI * 2); g.stroke(); }
 }
 
 // One frame of clip data: the face points in video pixels plus the live signals at that moment.
@@ -468,16 +461,6 @@ function drawFrame(g, f, name, now) {
     const W = CLIP_W, H = CLIP_H;
     drawClipBackdrop(g, W, H);
     drawLinePortrait(g, f, now);
-
-    // Registration ticks in the corners, from the film leader.
-    g.strokeStyle = 'rgba(242, 243, 244, 0.85)';
-    g.lineWidth = 3;
-    const inset = 22, tick = 34;
-    for (const [x, y, dx, dy] of [[inset, inset, 1, 1], [W - inset, inset, -1, 1], [inset, H - inset, 1, -1], [W - inset, H - inset, -1, -1]]) {
-        g.beginPath();
-        g.moveTo(x + dx * tick, y); g.lineTo(x, y); g.lineTo(x, y + dy * tick);
-        g.stroke();
-    }
 
     drawDoodleHeart(g, W - 150, H - 190, 92, f.beat, now);
 
