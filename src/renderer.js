@@ -35,6 +35,7 @@ let state = 'consent';
 let startedAt = 0;
 let lastGood = 0;
 let bpmShown = null;
+let announcedBpm = null;   // the beat count put into the status text, changed only on a clear shift
 let hintText = '';
 let hintAt = 0;
 let retries = 0;
@@ -80,8 +81,18 @@ function last(arr) {
 }
 
 function setStatus(text, isError) {
+    const err = !!isError;
+    // Only write when something changed, so a screen reader is not told the same thing every 200 ms.
+    if (els.status.textContent === text && els.status.classList.contains('error') === err) return;
     els.status.textContent = text;
-    els.status.classList.toggle('error', !!isError);
+    els.status.classList.toggle('error', err);
+}
+
+// Keep keyboard focus on something usable when a state change hides or disables the focused key.
+function focusSoon(el) {
+    requestAnimationFrame(() => {
+        if (el && !el.hidden && !el.disabled && el.offsetParent !== null) el.focus({ preventScroll: true });
+    });
 }
 
 function setState(next) {
@@ -155,6 +166,7 @@ function tick() {
     if ((state === 'finding' || state === 'lost') && lastGood && now - lastGood < 1500) {
         setState('locked');
         retries = 0;
+        if (!clipMode) focusSoon(els.capture);
     } else if (state === 'locked' && !reconnecting && now - lastGood > LOST_AFTER_MS) {
         setState('lost');
     }
@@ -169,7 +181,11 @@ function tick() {
     } else if (reconnecting) {
         setStatus('Connection dropped. Reconnecting...');
     } else if (state === 'locked') {
-        setStatus('Your pulse is in the mirror. Sit still to keep it.');
+        const bpmNow = bpmShown === null ? null : Math.round(bpmShown);
+        if (bpmNow !== null && (announcedBpm === null || Math.abs(bpmNow - announcedBpm) >= 4)) announcedBpm = bpmNow;
+        setStatus(announcedBpm === null
+            ? 'Your pulse is in the mirror. Sit still to keep it.'
+            : 'Your pulse is in the mirror, about ' + announcedBpm + ' beats a minute. Sit still to keep it.');
     } else if (state === 'lost') {
         setStatus("Can't find your pulse. Check the light and hold still.");
     } else if (hintText && now - hintAt < 2500) {
@@ -278,8 +294,8 @@ function drawDoodleHeart(g, cx, cy, size, beatNow, now) {
         for (let i = 0; i <= 48; i++) {
             const p = heartPoint((i / 48) * Math.PI * 2, s);
             const j = s * 0.07;
-            const x = cx + p.x + rnd(i + pass * 60) * j;
-            const y = cy + p.y + rnd(i + pass * 60 + 200) * j;
+            const x = cx + p.x + rnd(i) * j;
+            const y = cy + p.y + rnd(i + 200) * j;   // both passes share one wobble, so the dark pass is a tight underdraw
             if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
         }
         g.closePath();
@@ -462,7 +478,7 @@ function drawFrame(g, f, name, now) {
     drawClipBackdrop(g, W, H);
     drawLinePortrait(g, f, now);
 
-    drawDoodleHeart(g, W - 150, H - 190, 92, f.beat, now);
+    drawDoodleHeart(g, 940, 470, 100, f.beat, now);
 
     // Caption plate: the beat count, then the name, date and product.
     const date = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).toUpperCase();
@@ -552,12 +568,13 @@ async function capture() {
             els.badge.textContent = 'Recording ' + Math.max(0, Math.ceil(clipSeconds - elapsed));
             setStatus('Recording ' + clipSeconds + ' seconds. Hold still.');
             lostMs = state === 'locked' ? 0 : lostMs + 200;
-            if (lostMs > 1500) cancelled = true;
+            if (lostMs > 1500 || state === 'consent') cancelled = true;
             if (cancelled || elapsed >= clipSeconds) { clearInterval(counter); resolve(); }
         }, 200);
     });
     capturing = false;
     els.badge.textContent = 'Camera on';
+    if (state === 'consent') { frames = []; return; }   // stopped on purpose; release() has already reset the screen
     if (cancelled || frames.length < 10) {
         frames = [];
         setClipMode('');
@@ -567,6 +584,7 @@ async function capture() {
     portraitScale = 0;
     replayStart = performance.now();
     setClipMode('review');
+    focusSoon(els.name);
     setStatus('Clip ready. Add your name, then save.');
 }
 
@@ -575,6 +593,7 @@ function dropClip() {
     encoding = false;
     els.name.value = '';
     setClipMode('');
+    focusSoon(els.capture);
 }
 
 function setBusy(on) {
@@ -725,6 +744,7 @@ async function start() {
         startedAt = performance.now();
         lastGood = 0;
         bpmShown = null;
+        announcedBpm = null;
         pulseWave.length = 0;
         chestWave.length = 0;
         points = null;
@@ -732,6 +752,7 @@ async function start() {
         hintText = '';
         setState('finding');
         els.stop.disabled = false;
+        focusSoon(els.stop);
         await connect();
     } catch (err) {
         console.error('[pm] start failed', err);
@@ -754,6 +775,7 @@ async function release() {
     els.stop.disabled = true;
     els.start.disabled = false;
     setState('consent');
+    focusSoon(els.start);
 }
 
 async function stop() {
@@ -787,8 +809,8 @@ els.calm.addEventListener('click', () => {
 window.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     if (document.activeElement === els.name) { els.name.blur(); return; }
-    if (clipMode === 'review') discardClip();
-    else if (state !== 'consent' && !capturing) stop();
+    if (clipMode === 'review') return;   // a clip is only discarded with the Discard key, never by a stray Escape
+    if (state !== 'consent' && !capturing) stop();
 });
 setInterval(tick, 250);
 requestAnimationFrame(draw);

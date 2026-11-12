@@ -51,6 +51,8 @@ function createWindow() {
     const win = new BrowserWindow({
         width: 1100,
         height: 780,
+        minWidth: 1000,
+        minHeight: 640,
         backgroundColor: '#0c0d11',
         title: 'Pulse Mirror',
         webPreferences: {

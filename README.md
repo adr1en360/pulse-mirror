@@ -60,7 +60,7 @@ Notes:
 
 Sit about an arm's length from the camera, face a lamp or window, keep still and stay quiet. The first reading usually takes 20 to 60 seconds; on a slow connection it can take longer, because the pulse model downloads when you start. If the connection drops, the app reconnects by itself.
 
-Keys: **Start camera**, **Length** (minus and plus, 3 to 30 seconds), **Capture**, **Save clip** / **Save image** / **Discard**, **Calm motion** (a gentler throb and no sweeping arm), **Stop**. Escape stops the camera, or discards a clip under review.
+Keys: **Start camera**, **Length** (minus and plus, 3 to 30 seconds), **Capture**, **Save clip** / **Save image** / **Discard**, **Calm motion** (a gentler throb and no sweeping arm), **Stop**. Escape stops the camera. A clip under review is only discarded with the Discard key.
 
 ## Consent and data handling
 
