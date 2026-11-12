@@ -3,6 +3,7 @@
 Status: FROZEN on 11 Nov 2026. Changes need the owner's explicit OK.
 
 Change log:
+- 12 Nov 2026, corrections after the code review so the spec matches the build: the live pulse tint covers the whole face outline (not only cheeks and forehead), the app does not check for exactly one face, the consent screen also discloses that the SDK sends derived vitals to Presage's language model, a capture is cancelled when the last good pulse reading is more than three seconds old, and Escape never discards a clip under review.
 - 12 Nov 2026, owner's request: the clip background is a flat deep teal (#19404c), chosen so white lines and vermilion stand out without clashing, and the clip carries no viewfinder-style marks: no corner brackets, crosshair or rings.
 - 12 Nov 2026, owner's request: the portrait no longer fills the face with a sampled skin colour (it read badly in poor light). It is pure line art on the grey field. The mouth and brows get a mild boost (about 1.35x and 1.4x vertical) so a smile and raised eyebrows read clearly.
 - 12 Nov 2026, owner's request: the person can type their name after recording, shown in the caption of the clip and image, and can set the clip length (3 to 30 seconds, default 6) before capturing. A capture now stores drawing data rather than encoded video, so the name can be added afterwards; saving renders the final mp4 or png. Neither the name nor the length is stored.

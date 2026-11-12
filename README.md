@@ -2,7 +2,7 @@
 
 A mirror that shows your heartbeat in your own face.
 
-Pulse Mirror reads your pulse from your laptop camera using the [Presage SmartSpectra SDK](https://smartspectra.presagetech.com/docs), then makes your reflection flush with each beat and swell with each breath. Capture a six-second clip with a hand-drawn heart that beats at your rhythm, and save it to share.
+Pulse Mirror reads your pulse from your laptop camera using the [Presage SmartSpectra SDK](https://smartspectra.presagetech.com/docs), then makes your reflection flush with each beat and swell with each breath. Capture a short clip (6 seconds by default, up to 30) of a hand-drawn portrait of you with a heart that beats at your rhythm, and save it to share.
 
 It is a desktop app (Electron, Windows x64). Everything you see is drawn from the SDK's live readings. Nothing is simulated.
 
@@ -55,6 +55,10 @@ Notes:
 - If Electron's download from GitHub is blocked on your network, set `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/` before `npm install`.
 - If the window closes immediately when started from a VS Code terminal, clear `ELECTRON_RUN_AS_NODE` first.
 - If Windows offers your phone as a camera (Phone Link), the app skips cameras that look like phones or virtual devices and uses the physical laptop camera.
+
+## Tests
+
+`npm test` runs the unit tests for the parts that do not need a camera: the pulse lock and loss states, the beat count smoothing, landmark coordinates and the clip frame timing.
 
 ## Using it
 
