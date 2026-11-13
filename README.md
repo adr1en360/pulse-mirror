@@ -20,7 +20,7 @@ It is a desktop app (Electron, Windows x64). Everything you see is drawn from th
 
 ![Six line portraits saved by the app in one real session: neutral, big smile, mouth open, eyebrows up, eyes closed, look left](docs/expressions.png)
 
-The portraits above were saved by the app in one real session, with the camera reading about 63 to 64 beats a minute. The drawing follows how your face points move, so a smile, an open mouth, raised brows, closed eyes and a sideways look all show.
+The portraits above were saved by the app in one real session. The drawing follows how your face points move, so a smile, an open mouth, raised brows, closed eyes and a sideways look all show.
 
 ## Which signals it uses
 
