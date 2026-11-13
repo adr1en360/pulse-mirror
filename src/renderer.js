@@ -11,7 +11,7 @@ const {
 const { decodeMetrics } = require('@smartspectra/node-sdk/messages');
 const logic = require('./logic');
 
-const { position, isGoodPulse, smoothBpm, nextState, announceBpm, toPixels } = logic;
+const { position, isGoodPulse, smoothBpm, nextState, announceBpm, toPixels, breathGate } = logic;
 
 const $ = (id) => document.getElementById(id);
 const els = {
@@ -27,12 +27,16 @@ const LOCK_CONFIDENCE = 40;
 // The beat fades to "can't find your pulse" after this long without a good reading.
 const LOST_AFTER_MS = 3000;
 const STILL_LOOKING_MS = 45000;
+// The picture swells with your breathing only while the breathing rate is read at this confidence or higher.
+const BREATH_CONFIDENCE = 50;
+const BREATH_HOLD_MS = 5000;
 
 let sdk = null;
 let stream = null;
 let state = 'consent';
 let startedAt = 0;
 let lastGood = 0;
+let lastBreathGood = 0;
 let bpmShown = null;
 let announcedBpm = null;   // the beat count put into the status text, changed only on a clear shift
 let hintText = '';
@@ -53,6 +57,7 @@ const pulseWave = [];
 const chestWave = [];
 let beat = 0;       // 0..1, smoothed pulse waveform position
 let swell = 0;      // 0..1, smoothed breath position
+let breathOn = 0;   // 0..1, eases in while the breathing reading is confident
 let points = null;  // latest face landmarks as pixel-free fractions of the frame
 let landmarksNormalized = null;
 
@@ -112,6 +117,8 @@ function onMetrics(buf) {
 
     for (const s of m.cardio?.arterialPressureTrace ?? []) targetBeat = position(pulseWave, s.value, 90);
     for (const s of m.breathing?.upperTrace ?? []) targetSwell = position(chestWave, s.value, 240);
+    const breath = last(m.breathing?.rate);
+    if (breath && breath.confidence >= BREATH_CONFIDENCE) lastBreathGood = now;
 
     const lm = last(m.face?.landmarks);
     if (lm && lm.value && lm.value.length > 400) {
@@ -181,10 +188,11 @@ function paintOverlay() {
     const shaped = Math.min(1, Math.max(0, (targetBeat - 0.3) / 0.55));
     beat += (shaped - beat) * 0.55;
     swell += (targetSwell - swell) * 0.08;
-    const swellAmount = state === 'locked' ? (calm ? 0.004 : 0.012) : 0;
-    swellScale = 1 + swellAmount * swell;
+    breathOn = breathGate(breathOn, performance.now(), lastBreathGood, BREATH_HOLD_MS);
+    const swellAmount = state === 'locked' ? (calm ? 0.004 : 0.03) : 0;
+    swellScale = 1 + swellAmount * swell * breathOn;
     els.mirror.style.setProperty('--swell', String(swellScale));
-    els.tint.style.setProperty('--swell', String(1 + swellAmount * swell));
+    els.tint.style.setProperty('--swell', String(swellScale));
 
     if (!points || state === 'consent') return;
     const vw = els.preview.videoWidth || 1280, vh = els.preview.videoHeight || 720;
@@ -343,7 +351,7 @@ function snapshotFrame(now) {
     if (!points) return null;
     const vw = els.preview.videoWidth || 1280, vh = els.preview.videoHeight || 720;
     const pts = toPixels(points, landmarksNormalized, vw, vh);
-    return { pts, vw, vh, beat, swell, bpm: bpmShown, calm: document.body.classList.contains('calm') };
+    return { pts, vw, vh, beat, swell: swell * breathOn, bpm: bpmShown, calm: document.body.classList.contains('calm') };
 }
 
 // Traces the face points as a hand-drawn portrait. The person's own smile, blinks, mouth,
@@ -725,6 +733,7 @@ async function reconnect() {
             await new Promise((r) => setTimeout(r, 1500));
             if (state === 'consent' || token !== session) return;
             lastGood = 0;
+            lastBreathGood = 0;
             startedAt = performance.now();
             try { await connect(token); return; } catch (err) { console.error('[pm] reconnect failed', err); }
         }
@@ -750,6 +759,7 @@ async function start() {
         // Show the mirror at once; starting the SDK needs the network and can take a while.
         startedAt = performance.now();
         lastGood = 0;
+        lastBreathGood = 0;
         bpmShown = null;
         announcedBpm = null;
         pulseWave.length = 0;
@@ -780,6 +790,7 @@ async function release() {
     els.preview.srcObject = null;
     points = null;
     targetBeat = 0; targetSwell = 0;
+    lastBreathGood = 0;
     els.stop.disabled = true;
     els.capture.disabled = true;
     els.start.disabled = false;

@@ -76,3 +76,14 @@ test('frameAt returns the last frame at or before a time, clamped at the ends', 
     assert.equal(logic.frameAt(frames, 99999).id, 'd');
     assert.equal(logic.frameAt([{ t: 0, id: 'only' }], 500).id, 'only');
 });
+
+test('breathGate fades in while breathing is confident and out after the hold time', () => {
+    let gate = 0;
+    for (let i = 0; i < 200; i++) gate = logic.breathGate(gate, 10000, 9000, 5000);
+    assert.ok(gate > 0.99);
+    const once = logic.breathGate(0, 10000, 9000, 5000);
+    assert.ok(once > 0 && once < 0.1, 'one frame does not jump straight to full');
+    for (let i = 0; i < 200; i++) gate = logic.breathGate(gate, 20000, 9000, 5000);
+    assert.ok(gate < 0.01);
+    assert.equal(logic.breathGate(0, 10000, 0, 5000), 0, 'no confident reading yet means no swell');
+});

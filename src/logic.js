@@ -67,4 +67,11 @@ function frameAt(frames, ms) {
     return frames[lo];
 }
 
-module.exports = { LOCK_HOLD_MS, position, isGoodPulse, smoothBpm, nextState, announceBpm, toPixels, clipDuration, frameAt };
+// The breath swell shows only while the SDK has recently been confident about breathing.
+// It eases toward on or off a little each frame, so it fades in and out instead of popping.
+function breathGate(gate, now, lastBreathGood, holdMs) {
+    const target = lastBreathGood && now - lastBreathGood < holdMs ? 1 : 0;
+    return gate + (target - gate) * 0.03;
+}
+
+module.exports = { LOCK_HOLD_MS, position, isGoodPulse, smoothBpm, nextState, announceBpm, toPixels, clipDuration, frameAt, breathGate };
