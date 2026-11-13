@@ -86,7 +86,7 @@ Keys: **Start camera**, **Length** (minus and plus, 3 to 30 seconds), **Capture*
 
 - The flush on your face is drawn by the app and driven by the SDK's live pulse waveform. It is not magnified video.
 - A recorded video of a real face is read as a pulse by the SDK, so this app makes no claim to prove a person is live. A still photo does not produce a reading.
-- Accuracy depends on light, stillness and the camera. Presage publishes no per-skin-tone accuracy figures. In testing on one person, the pulse read 86 to 88 beats a minute against a manual count of 84.
+- Accuracy depends on light, stillness and the camera.
 - The SDK's expression readings were not reliable enough in testing (in one test a smile scored "happy" in only 7% of readings, less than a neutral face did), so the app does not use them. The portrait shows your expression through the movement of your face points instead, and makes no claim about your emotions.
 - The portrait does not draw hair, glasses or headphones; it follows only the face outline and features.
 
