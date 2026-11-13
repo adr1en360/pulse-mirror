@@ -45,7 +45,9 @@ ipcMain.handle('pm:save', async (event, bytes, ext) => {
     const safeExt = ext === 'mp4' ? 'mp4' : ext === 'png' ? 'png' : 'webm';
     const isImage = safeExt === 'png';
     if (!looksLike(bytes, safeExt)) return { saved: false };
-    const stamp = new Date().toISOString().slice(0, 10);
+    // Local date, so the file name matches the date in the caption.
+    const now = new Date();
+    const stamp = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
     const result = await dialog.showSaveDialog(mainWindow, {
         title: isImage ? 'Save your image' : 'Save your clip',
         defaultPath: 'pulse-mirror-' + stamp + '.' + safeExt,
