@@ -1,5 +1,7 @@
 # Pulse Mirror
 
+![Pulse Mirror: your heartbeat, read by your webcam and drawn by hand](docs/cover.png)
+
 A mirror that shows your heartbeat in your own face.
 
 Pulse Mirror reads your pulse from your laptop camera using the [Presage SmartSpectra SDK](https://smartspectra.presagetech.com/docs), then makes your reflection flush with each beat and swell with each breath. Capture a short clip (6 seconds by default, up to 30) of a hand-drawn portrait of you with a heart that beats at your rhythm, and save it to share.
@@ -15,6 +17,10 @@ It is a desktop app (Electron, Windows x64). Everything you see is drawn from th
 3. **Locked.** Once the SDK reports a stable pulse, the leader falls away. Your whole face flushes in time with your pulse waveform, the picture swells slightly with your breathing, and a readout shows "about N beats a minute".
 4. **Lost.** If the pulse is lost for three seconds the beat fades out and the app says so plainly. It never fakes a beat.
 5. **Capture.** Capture records a looping clip, 3 to 30 seconds long as you set with the Length control (6 by default). It is not video of you: it is a hand-drawn portrait traced live from your face points (face outline, brows, eyes and pupils, lips, nose), so your smile, blinks, open mouth and gaze move the drawing. Your cheeks hatch with each pulse, the portrait breathes, a hand-drawn heart beats beside it, and a caption reads "about N beats a minute". Review it, and if you like type your name, which appears in the caption. Then Save clip (an mp4), Save image (a PNG still of the portrait at its strongest heartbeat, handy for posts), or Discard. Each opens a Save dialog and writes one file you choose. If the pulse is lost mid-recording, the capture is cancelled.
+
+![Six line portraits saved by the app in one real session: neutral, big smile, mouth open, eyebrows up, eyes closed, look left](docs/expressions.png)
+
+The portraits above were saved by the app in one real session, with the camera reading about 63 to 64 beats a minute. The drawing follows how your face points move, so a smile, an open mouth, raised brows, closed eyes and a sideways look all show.
 
 ## Which signals it uses
 
