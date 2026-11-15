@@ -11,7 +11,7 @@ const {
 const { decodeMetrics } = require('@smartspectra/node-sdk/messages');
 const logic = require('./logic');
 
-const { position, isGoodPulse, smoothBpm, nextState, announceBpm, toPixels, breathGate } = logic;
+const { position, isGoodPulse, smoothBpm, nextState, announceBpm, toPixels, breathGate, faceMeasures, restingValue, markEffects, SPARKLE_MS } = logic;
 
 const $ = (id) => document.getElementById(id);
 const els = {
@@ -60,6 +60,7 @@ let swell = 0;      // 0..1, smoothed breath position
 let breathOn = 0;   // 0..1, eases in while the breathing reading is confident
 let points = null;  // latest face landmarks as pixel-free fractions of the frame
 let landmarksNormalized = null;
+const mouthHistory = [];   // mouth width while locked, for the resting mouth the smile lines compare against
 
 // Windows can offer the phone (Phone Link) or other virtual cameras as the
 // default; pick a physical laptop camera ourselves.
@@ -129,6 +130,11 @@ function onMetrics(buf) {
             console.log('[pm] landmarks ' + lm.value.length + ' points, ' + (landmarksNormalized ? 'normalized' : 'pixel') + ' coordinates');
         }
         points = lm.value;
+        if (state === 'locked') {
+            const vw = els.preview.videoWidth || 1280, vh = els.preview.videoHeight || 720;
+            mouthHistory.push(faceMeasures(toPixels(points, landmarksNormalized, vw, vh)).mouth);
+            if (mouthHistory.length > 900) mouthHistory.shift();
+        }
     }
 }
 
@@ -442,6 +448,48 @@ function drawLinePortrait(g, f, now) {
         }
     }
     g.globalAlpha = 1;
+
+    // A wink sets off a sparkle beside the closed eye; a smile draws smile lines at the mouth.
+    // Both are white ink: vermilion stays reserved for the pulse.
+    if (f.sparkle) {
+        const corner = T(f.sparkle.side === 'a' ? 33 : 263);
+        const dx = corner.x - ox, dy = corner.y - oy, len = Math.hypot(dx, dy) || 1;
+        const age = f.sparkle.age;
+        const pop = age < 150 ? age / 150 : 1 - (age - 150) / (SPARKLE_MS - 150);
+        const sx = corner.x + (dx / len) * eyeW * 1.7, sy = corner.y - eyeW * 1.1;
+        drawSparkle(g, sx, sy, eyeW * 0.95 * (0.7 + 0.3 * pop), pop, rnd);
+        drawSparkle(g, sx + (dx / len) * eyeW * 0.9, sy + eyeW * 0.85, eyeW * 0.4 * (0.7 + 0.3 * pop), pop, rnd);   // a small second twinkle
+    }
+    if (f.smile > 0.02) {
+        g.globalAlpha = f.smile;
+        for (const i of [61, 291]) {
+            const c = T(i);
+            const sx = Math.sign(c.x - mouthAnchor.x) || 1;
+            const o = eyeW * 0.3, h = eyeW * 0.6;
+            ink([{ x: c.x + sx * o, y: c.y - h }, { x: c.x + sx * (o + eyeW * 0.3), y: c.y }, { x: c.x + sx * o, y: c.y + h }], false, 5);
+        }
+        g.globalAlpha = 1;
+    }
+    g.restore();
+}
+
+// A four-point sparkle in the portrait's scratchy hand: a long cross and a short diagonal one.
+function drawSparkle(g, x, y, size, alpha, rnd) {
+    g.save();
+    g.globalAlpha = Math.max(0, Math.min(1, alpha));
+    g.lineCap = 'round';
+    const arms = [[0, 1], [Math.PI / 2, 1], [Math.PI / 4, 0.45], [-Math.PI / 4, 0.45]];
+    for (const pass of [0, 1]) {
+        g.strokeStyle = pass === 0 ? 'rgba(16, 18, 20, 0.5)' : LINE;
+        g.lineWidth = pass === 0 ? 10 : 5;
+        arms.forEach(([ang, k], n) => {
+            const ex = Math.cos(ang) * size * k, ey = Math.sin(ang) * size * k;
+            g.beginPath();
+            g.moveTo(x - ex + rnd(700 + n) * 3, y - ey + rnd(720 + n) * 3);
+            g.lineTo(x + ex + rnd(740 + n) * 3, y + ey + rnd(760 + n) * 3);
+            g.stroke();
+        });
+    }
     g.restore();
 }
 
@@ -560,6 +608,7 @@ async function capture() {
         setStatus('Lost your pulse during the capture, so nothing was kept. Hold still and try again.', true);
         return;
     }
+    markEffects(frames, restingValue(mouthHistory));
     portraitScale = 0;
     replayStart = performance.now();
     setClipMode('review');
@@ -764,6 +813,7 @@ async function start() {
         announcedBpm = null;
         pulseWave.length = 0;
         chestWave.length = 0;
+        mouthHistory.length = 0;
         points = null;
         landmarksNormalized = null;
         hintText = '';
