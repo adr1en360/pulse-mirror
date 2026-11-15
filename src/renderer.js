@@ -3,6 +3,7 @@
 const {
     SmartSpectraSDK,
     ProcessingStatus,
+    SmartSpectraErrorCode,
     ValidationCode,
     breathingMetrics,
     cardioMetrics,
@@ -755,6 +756,12 @@ function buildSdk() {
     instance.on('error', (code, message) => {
         if (sdk !== instance) return;
         console.error('[pm] sdk error ' + code + ': ' + message);
+        // Reconnecting cannot fix these, so stop and say why.
+        if (code === SmartSpectraErrorCode.kCreditExhausted) {
+            fail('This Presage access key has used up its measurement credits. Check your usage with Presage, then press Start camera.');
+        } else if (code === SmartSpectraErrorCode.kAuthenticationFailed) {
+            fail('Presage did not accept the access key in .env. Check the key, then press Start camera.');
+        }
     });
 }
 
